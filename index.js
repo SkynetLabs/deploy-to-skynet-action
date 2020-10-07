@@ -39,7 +39,7 @@ function encodeBase32(input) {
       await octokit.issues.createComment({
         ...github.context.repo,
         issue_number: github.context.issue.number,
-        body: `Deployed to https://${skylinkEncodedBase32}.siasky.net}<br>Skylink: \`${skylink}\``,
+        body: `Deployed to https://${skylinkEncodedBase32}.siasky.net<br>Skylink: \`${skylink}\``,
       });
     }
   } catch (error) {
