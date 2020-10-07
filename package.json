@@ -1,0 +1,26 @@
+{
+  "name": "deploy-to-skynet-action",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kwypchlo/deploy-to-skynet-action.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kwypchlo/deploy-to-skynet-action/issues"
+  },
+  "homepage": "https://github.com/kwypchlo/deploy-to-skynet-action#readme",
+  "dependencies": {
+    "@actions/core": "^1.2.6",
+    "@actions/github": "^4.0.0",
+    "@nebulous/skynet": "^2.0.1",
+    "skynet-js": "^2.0.9"
+  }
+}

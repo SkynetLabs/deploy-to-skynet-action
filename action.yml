@@ -1,0 +1,15 @@
+name: "Deploy to Skynet"
+description: "Deploy your static webapp to Skynet"
+inputs:
+  upload-dir:
+    description: "Directory to upload"
+    required: true
+  github-token:
+    description: "Github token used for including the skylink url in pull request"
+    required: true
+outputs:
+  skylink:
+    description: "Uploaded resource skylink"
+runs:
+  using: "node12"
+  main: index.js
