@@ -1,5 +1,8 @@
 name: "Deploy to Skynet"
 description: "Deploy your static webapp to Skynet"
+branding:
+  icon: "cloud"
+  color: "green"
 inputs:
   upload-dir:
     description: "Directory to upload"
