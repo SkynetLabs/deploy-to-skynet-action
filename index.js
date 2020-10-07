@@ -2,6 +2,20 @@ const core = require("@actions/core");
 const github = require("@actions/github");
 const { SkynetClient } = require("@nebulous/skynet");
 const { parseSkylink } = require("skynet-js");
+const base64 = require("base64-js");
+const base32Encode = require("base32-encode");
+
+function decodeBase64(input = "") {
+  return base64.toByteArray(
+    input.padEnd(input.length + 4 - (input.length % 4), "=")
+  );
+}
+
+function encodeBase32(input) {
+  return base32Encode(input, "RFC4648-HEX", {
+    padding: false,
+  }).toLowerCase();
+}
 
 (async () => {
   try {
@@ -18,10 +32,14 @@ const { parseSkylink } = require("skynet-js");
       const gitHubToken = core.getInput("github-token");
       const octokit = github.getOctokit(gitHubToken);
 
+      // generate base32 skylink from base64 skylink
+      const skylinkDecoded = decodeBase64(parseSkylink(skylink));
+      const skylinkEncodedBase32 = encodeBase32(skylinkDecoded);
+
       await octokit.issues.createComment({
         ...github.context.repo,
         issue_number: github.context.issue.number,
-        body: `Deployed to https://siasky.net/${parseSkylink(skylink)}`,
+        body: `Deployed to https://${skylinkEncodedBase32}.siasky.net}<br>Skylink: \`${skylink}\``,
       });
     }
   } catch (error) {
