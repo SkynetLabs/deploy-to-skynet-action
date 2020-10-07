@@ -57,7 +57,7 @@ jobs:
       - name: Build webapp
         run: yarn build
 
-      - name: Upload to Skynet
+      - name: Deploy to Skynet
         uses: kwypchlo/deploy-to-skynet-action@v1
         with:
           upload-dir: public
