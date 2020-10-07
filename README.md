@@ -1,6 +1,6 @@
 # Deploy to Skynet action
 
-This action deploys a directory to Skynet and comments on pull request with a skylink url.
+This action deploys a directory to [Skynet](https://siasky.net) and comments on pull request with a skylink url.
 
 ## Inputs
 
