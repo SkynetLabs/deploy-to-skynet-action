@@ -2,6 +2,8 @@
 
 This action deploys a directory to [Skynet](https://siasky.net) and comments on pull request with a skylink url.
 
+![Screenshot of Pull Request notification](screenshot.png)
+
 ## Inputs
 
 ### `upload-dir`
