@@ -40,13 +40,17 @@ function encodeBase32(input) {
       core.setOutput("skylink-url", skylinkUrl);
       console.log(`Deployed to: ${skylinkUrl}`);
 
-      await octokit.issues.createComment({
-        ...github.context.repo,
-        issue_number: github.context.issue.number,
-        body: `Deployed to ${skylinkUrl}<br>Skylink: \`${skylink}\``,
-      });
+      try {
+        await octokit.issues.createComment({
+          ...github.context.repo,
+          issue_number: github.context.issue.number,
+          body: `Deployed to ${skylinkUrl}<br>Skylink: \`${skylink}\``,
+        });
+      } catch (error) {
+        console.log(`Failed to create comment: ${error.message}`);
+      }
     }
   } catch (error) {
-    core.setFailed(error.message);
+    core.setFailed(`Failed to deploy: ${error.message}`);
   }
 })();
