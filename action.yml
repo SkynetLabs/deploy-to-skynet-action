@@ -13,6 +13,8 @@ inputs:
 outputs:
   skylink:
     description: "Uploaded resource skylink"
+  skylink-url:
+    description: "Uploaded resource skylink url on https://siasky.net"
 runs:
   using: "node12"
   main: index.js

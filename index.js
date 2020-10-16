@@ -35,11 +35,15 @@ function encodeBase32(input) {
       // generate base32 skylink from base64 skylink
       const skylinkDecoded = decodeBase64(parseSkylink(skylink));
       const skylinkEncodedBase32 = encodeBase32(skylinkDecoded);
+      const skylinkUrl = `https://${skylinkEncodedBase32}.siasky.net`;
+
+      core.setOutput("skylink-url", skylinkUrl);
+      console.log(`Deployed to: ${skylinkUrl}`);
 
       await octokit.issues.createComment({
         ...github.context.repo,
         issue_number: github.context.issue.number,
-        body: `Deployed to https://${skylinkEncodedBase32}.siasky.net<br>Skylink: \`${skylink}\``,
+        body: `Deployed to ${skylinkUrl}<br>Skylink: \`${skylink}\``,
       });
     }
   } catch (error) {
