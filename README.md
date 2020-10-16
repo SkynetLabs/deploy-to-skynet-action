@@ -4,6 +4,8 @@ This action deploys a directory to [Skynet](https://siasky.net) and comments on 
 
 ![Screenshot of Pull Request notification](screenshot.png)
 
+**Caveat:** This action will only comment on a pull request coming from same account/organization. If the pull request is from a forked repo, this action will not be able to create a comment due to limited permissions but you will still be able to drill down the action logs and access the skylink and deploy url manually.
+
 ## Inputs
 
 ### `upload-dir`
