@@ -1,7 +1,12 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
 const { SkynetClient: NodeSkynetClient } = require("@nebulous/skynet");
-const { parseSkylink, keyPairFromSeed, SkynetClient } = require("skynet-js");
+const {
+  parseSkylink,
+  keyPairFromSeed,
+  HashDataKey,
+  SkynetClient,
+} = require("skynet-js");
 const base64 = require("base64-js");
 const base32Encode = require("base32-encode");
 
@@ -52,8 +57,12 @@ function encodeBase32(input) {
         };
         await skynetClient.registry.setEntry(privateKey, dataKey, updatedEntry);
 
-        const encodedPublicKey = encodeURIComponent(publicKey.toString("hex"));
-        const encodedDataKey = encodeURIComponent(dataKey.toString("hex"));
+        const encodedPublicKey = encodeURIComponent(
+          `ed25519:${publicKey.toString("hex")}`
+        );
+        const encodedDataKey = encodeURIComponent(
+          HashDataKey(dataKey).toString("hex")
+        );
         console.log(
           `Registry entry updated: https://siasky.net/skynet/registry?publickey=${encodedPublicKey}&datakey=${encodedDataKey}`
         );
