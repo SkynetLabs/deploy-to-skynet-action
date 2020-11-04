@@ -1,7 +1,7 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
-const { SkynetClient } = require("@nebulous/skynet");
-const { parseSkylink, keyPairFromSeed } = require("skynet-js");
+const { SkynetClient: NodeSkynetClient } = require("@nebulous/skynet");
+const { parseSkylink, keyPairFromSeed, SkynetClient } = require("skynet-js");
 const base64 = require("base64-js");
 const base32Encode = require("base32-encode");
 
@@ -20,7 +20,7 @@ function encodeBase32(input) {
 (async () => {
   try {
     // upload to skynet
-    const skynetClient = new SkynetClient();
+    const skynetClient = new NodeSkynetClient();
     const skylink = await skynetClient.uploadDirectory(
       core.getInput("upload-dir")
     );
@@ -38,6 +38,7 @@ function encodeBase32(input) {
     // if registry is properly configured, update the skylink in the entry
     if (core.getInput("registry-seed") && core.getInput("registry-datakey")) {
       try {
+        const skynetClient = new SkynetClient("https://siasky.net");
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = keyPairFromSeed(
           core.getInput("registry-seed")
