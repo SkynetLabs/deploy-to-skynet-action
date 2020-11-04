@@ -1,12 +1,8 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
 const { SkynetClient: NodeSkynetClient } = require("@nebulous/skynet");
-const {
-  parseSkylink,
-  keyPairFromSeed,
-  HashDataKey,
-  SkynetClient,
-} = require("skynet-js");
+const { parseSkylink, keyPairFromSeed, SkynetClient } = require("skynet-js");
+const { HashDataKey } = require("skynet-js/dist/crypto");
 const base64 = require("base64-js");
 const base32Encode = require("base32-encode");
 
