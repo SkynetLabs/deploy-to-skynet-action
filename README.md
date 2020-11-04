@@ -34,7 +34,7 @@ The resulting skylink.
 
 Example: `sia://IAC6CkhNYuWZqMVr1gob1B6tPg4MrBGRzTaDvAIAeu9A9w`.
 
-## Simplest example usage
+## Example usage
 
 ```yaml
 uses: kwypchlo/deploy-to-skynet-action@main
