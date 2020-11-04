@@ -35,6 +35,40 @@ function encodeBase32(input) {
     core.setOutput("skylink-url", skylinkUrl);
     console.log(`Deployed to: ${skylinkUrl}`);
 
+    const registry = {
+      privatekey: core.getInput("registry-privatekey"),
+      publickey: core.getInput("registry-publickey"),
+      datakey: core.getInput("registry-datakey"),
+    };
+
+    // if registry is properly configured, update the skylink in the entry
+    if (registry.privatekey && registry.publickey && registry.datakey) {
+      try {
+        const { entry } = await skynetClient.registry.getEntry(
+          registry.publickey,
+          registry.datakey
+        );
+        const updatedEntry = {
+          datakey: registry.datakey,
+          revision: entry.revision + 1,
+          data: skylink,
+        };
+        await skynetClient.registry.setEntry(
+          registry.privatekey,
+          registry.datakey,
+          updatedEntry
+        );
+
+        const encodedPublicKey = encodeURIComponent(registry.publickey);
+        const encodedDataKey = encodeURIComponent(registry.datakey);
+        console.log(
+          `Registry entry updated: https://siasky.net/skynet/registry?publickey=${encodedPublicKey}&datakey=${encodedDataKey}`
+        );
+      } catch (error) {
+        console.log(`Failed to update registry entry ${error.message}`);
+      }
+    }
+
     // put a skylink in a pull request comment if available
     if (github.context.issue.number) {
       const gitHubToken = core.getInput("github-token");
