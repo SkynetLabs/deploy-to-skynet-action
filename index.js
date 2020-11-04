@@ -27,18 +27,18 @@ function encodeBase32(input) {
     core.setOutput("skylink", skylink);
     console.log(`Skylink: ${skylink}`);
 
+    // generate base32 skylink from base64 skylink
+    const skylinkDecoded = decodeBase64(parseSkylink(skylink));
+    const skylinkEncodedBase32 = encodeBase32(skylinkDecoded);
+    const skylinkUrl = `https://${skylinkEncodedBase32}.siasky.net`;
+
+    core.setOutput("skylink-url", skylinkUrl);
+    console.log(`Deployed to: ${skylinkUrl}`);
+
     // put a skylink in a pull request comment if available
     if (github.context.issue.number) {
       const gitHubToken = core.getInput("github-token");
       const octokit = github.getOctokit(gitHubToken);
-
-      // generate base32 skylink from base64 skylink
-      const skylinkDecoded = decodeBase64(parseSkylink(skylink));
-      const skylinkEncodedBase32 = encodeBase32(skylinkDecoded);
-      const skylinkUrl = `https://${skylinkEncodedBase32}.siasky.net`;
-
-      core.setOutput("skylink-url", skylinkUrl);
-      console.log(`Deployed to: ${skylinkUrl}`);
 
       try {
         await octokit.issues.createComment({
