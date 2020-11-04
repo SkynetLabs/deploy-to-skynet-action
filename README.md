@@ -76,6 +76,5 @@ jobs:
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          #
           registry-seed: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.REGISTRY_SEED || '' }}
 ```
