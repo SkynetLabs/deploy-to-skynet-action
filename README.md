@@ -34,14 +34,13 @@ The resulting skylink.
 
 Example: `sia://IAC6CkhNYuWZqMVr1gob1B6tPg4MrBGRzTaDvAIAeu9A9w`.
 
-## Example usage
+## Simplest example usage
 
 ```yaml
 uses: kwypchlo/deploy-to-skynet-action@main
 with:
   upload-dir: public
   github-token: ${{ secrets.GITHUB_TOKEN }}
-  registry-seed: ${{ secrets.REGISTRY_SEED }}
 ```
 
 ### Full workflow example
@@ -77,5 +76,6 @@ jobs:
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          #
           registry-seed: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.REGISTRY_SEED || '' }}
 ```
