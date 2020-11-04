@@ -57,7 +57,7 @@ function encodeBase32(input) {
           `ed25519:${publicKey.toString("hex")}`
         );
         const encodedDataKey = encodeURIComponent(
-          HashDataKey(dataKey).toString("hex")
+          Buffer.from(HashDataKey(dataKey)).toString("hex")
         );
         console.log(
           `Registry entry updated: https://siasky.net/skynet/registry?publickey=${encodedPublicKey}&datakey=${encodedDataKey}`
