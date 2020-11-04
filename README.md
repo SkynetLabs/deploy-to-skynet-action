@@ -51,8 +51,7 @@ name: My CI Pipeline
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
