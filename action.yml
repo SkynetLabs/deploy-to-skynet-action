@@ -10,9 +10,6 @@ inputs:
   github-token:
     description: "Github token used for including the skylink url in pull request"
     required: true
-  registry-update:
-    description: "Condition on whether to update registry entry if credentials are supplied"
-    default: true
   registry-seed:
     description: "Seed that generates registry private key (optional, only if you want to update the registry entry with skylink)"
   registry-datakey:
