@@ -49,7 +49,7 @@ function encodeBase32(input) {
         const updatedEntry = {
           datakey: dataKey,
           revision: entry ? entry.entry.revision + 1 : 0,
-          data: skylink,
+          data: parseSkylink(skylink),
         };
         await skynetClient.registry.setEntry(privateKey, dataKey, updatedEntry);
 
