@@ -20,6 +20,12 @@ This action requires the upload directory to be already available so you will ne
 
 Find out more about github token from [documentation](https://docs.github.com/en/free-pro-team@latest/actions/reference/authentication-in-a-workflow).
 
+### `registry-seed`
+
+You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed skylink.
+
+Public link to the registry entry will be printed in the action log.
+
 ## Outputs
 
 ### `skylink`
@@ -42,7 +48,10 @@ with:
 ```yaml
 name: My CI Pipeline
 
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches: [main]
 
 jobs:
   build:
@@ -66,4 +75,5 @@ jobs:
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          registry-seed: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.REGISTRY_SEED || '' }}
 ```
