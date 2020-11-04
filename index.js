@@ -1,7 +1,7 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
 const { SkynetClient } = require("@nebulous/skynet");
-const { parseSkylink } = require("skynet-js");
+const { parseSkylink, keyPairFromSeed } = require("skynet-js");
 const base64 = require("base64-js");
 const base32Encode = require("base32-encode");
 
@@ -35,32 +35,26 @@ function encodeBase32(input) {
     core.setOutput("skylink-url", skylinkUrl);
     console.log(`Deployed to: ${skylinkUrl}`);
 
-    const registry = {
-      privatekey: core.getInput("registry-privatekey"),
-      publickey: core.getInput("registry-publickey"),
-      datakey: core.getInput("registry-datakey"),
-    };
-
     // if registry is properly configured, update the skylink in the entry
-    if (registry.privatekey && registry.publickey && registry.datakey) {
+    if (core.getInput("registry-seed") && core.getInput("registry-datakey")) {
       try {
+        const dataKey = core.getInput("registry-datakey");
+        const { publicKey, privateKey } = keyPairFromSeed(
+          core.getInput("registry-seed")
+        );
         const { entry } = await skynetClient.registry.getEntry(
-          registry.publickey,
-          registry.datakey
+          publicKey,
+          dataKey
         );
         const updatedEntry = {
-          datakey: registry.datakey,
+          datakey: dataKey,
           revision: entry.revision + 1,
           data: skylink,
         };
-        await skynetClient.registry.setEntry(
-          registry.privatekey,
-          registry.datakey,
-          updatedEntry
-        );
+        await skynetClient.registry.setEntry(privateKey, dataKey, updatedEntry);
 
-        const encodedPublicKey = encodeURIComponent(registry.publickey);
-        const encodedDataKey = encodeURIComponent(registry.datakey);
+        const encodedPublicKey = encodeURIComponent(publicKey);
+        const encodedDataKey = encodeURIComponent(dataKey);
         console.log(
           `Registry entry updated: https://siasky.net/skynet/registry?publickey=${encodedPublicKey}&datakey=${encodedDataKey}`
         );
