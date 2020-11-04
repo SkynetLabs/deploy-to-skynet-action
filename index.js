@@ -36,8 +36,22 @@ function encodeBase32(input) {
     core.setOutput("skylink-url", skylinkUrl);
     console.log(`Deployed to: ${skylinkUrl}`);
 
+    console.log(
+      core.getInput("registry-update"),
+      typeof core.getInput("registry-update")
+    );
+    console.log(
+      core.getInput("registry-datakey"),
+      typeof core.getInput("registry-datakey")
+    );
+    console.log(typeof core.getInput("registry-seed"));
+
     // if registry is properly configured, update the skylink in the entry
-    if (core.getInput("registry-seed") && core.getInput("registry-datakey")) {
+    if (
+      core.getInput("registry-update") &&
+      core.getInput("registry-seed") &&
+      core.getInput("registry-datakey")
+    ) {
       try {
         const skynetClient = new SkynetClient("https://siasky.net");
         const dataKey = core.getInput("registry-datakey");
