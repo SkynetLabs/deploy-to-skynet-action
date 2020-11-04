@@ -52,8 +52,8 @@ function encodeBase32(input) {
         };
         await skynetClient.registry.setEntry(privateKey, dataKey, updatedEntry);
 
-        const encodedPublicKey = encodeURIComponent(publicKey);
-        const encodedDataKey = encodeURIComponent(dataKey);
+        const encodedPublicKey = encodeURIComponent(publicKey.toString("hex"));
+        const encodedDataKey = encodeURIComponent(dataKey.toString("hex"));
         console.log(
           `Registry entry updated: https://siasky.net/skynet/registry?publickey=${encodedPublicKey}&datakey=${encodedDataKey}`
         );
