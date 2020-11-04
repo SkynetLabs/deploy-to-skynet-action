@@ -43,13 +43,11 @@ function encodeBase32(input) {
         const { publicKey, privateKey } = keyPairFromSeed(
           core.getInput("registry-seed")
         );
-        const { entry } = await skynetClient.registry.getEntry(
-          publicKey,
-          dataKey
-        );
+
+        const entry = await skynetClient.registry.getEntry(publicKey, dataKey);
         const updatedEntry = {
           datakey: dataKey,
-          revision: entry.revision + 1,
+          revision: entry ? entry.entry.revision + 1 : 0,
           data: skylink,
         };
         await skynetClient.registry.setEntry(privateKey, dataKey, updatedEntry);
