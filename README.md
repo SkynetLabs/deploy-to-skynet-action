@@ -10,7 +10,7 @@ This action deploys a directory to [Skynet](https://siasky.net) and comments on 
 
 ### `upload-dir`
 
-**Required** Directory to upload (usually `dist`, `out` or `public`).
+**Required** Directory to upload (usually `build`, `dist`, `out` or `public`).
 
 This action requires the upload directory to be already available so you will need to run the build step before running this action.
 
@@ -26,13 +26,25 @@ You can provide a seed (keep it secret, keep it safe) and this action will set c
 
 Public link to the registry entry will be printed in the action log.
 
+### `registry-datakey`
+
+Default value: `skylink.txt`
+
+You can define custom datakey for a registry entry when used with `registry-seed`. Change only if you want to use a specific key, default value will work in all other cases.
+
 ## Outputs
 
 ### `skylink`
 
 The resulting skylink.
 
-Example: `sia://IAC6CkhNYuWZqMVr1gob1B6tPg4MrBGRzTaDvAIAeu9A9w`.
+Example: `sia://IAC6CkhNYuWZqMVr1gob1B6tPg4MrBGRzTaDvAIAeu9A9w`
+
+### `skylink-url`
+
+The resulting skylink url (base32 encoded skylink in subdomain).
+
+Example: `https://400bk2i89lheb6d8olltc2grqgfaqfge1im134ed6q1ro0g0fbnk1to.siasky.net`
 
 ## Example usage
 
