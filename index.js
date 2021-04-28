@@ -17,6 +17,18 @@ function encodeBase32(input) {
   }).toLowerCase();
 }
 
+function outputAxiosErrorMessage(error) {
+  if (error.response) {
+    const { path, method } = error.request;
+    const { status, statusText } = error.response;
+
+    console.log(
+      `${method.toUpperCase()} ${path} failed with status ${status}: ${statusText}`
+    );
+    console.log(error.response.data || "Response contained no data");
+  }
+}
+
 (async () => {
   try {
     // upload to skynet
@@ -53,6 +65,8 @@ function encodeBase32(input) {
         const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
         console.log(`Registry entry updated: ${entryUrl}`);
       } catch (error) {
+        outputAxiosErrorMessage(error);
+
         console.log(`Failed to update registry entry ${error.message}`);
       }
     }
@@ -73,6 +87,8 @@ function encodeBase32(input) {
       }
     }
   } catch (error) {
+    outputAxiosErrorMessage(error);
+
     core.setFailed(`Failed to deploy: ${error.message}`);
   }
 })();
