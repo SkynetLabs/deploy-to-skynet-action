@@ -4,6 +4,8 @@ const { SkynetClient: NodeSkynetClient } = require("@nebulous/skynet");
 const { parseSkylink, genKeyPairFromSeed, SkynetClient } = require("skynet-js");
 const base64 = require("base64-js");
 const base32Encode = require("base32-encode");
+const parseUrl = require("parse-url");
+const qs = require("qs");
 
 function decodeBase64(input = "") {
   return base64.toByteArray(
@@ -29,9 +31,11 @@ function outputAxiosErrorMessage(error) {
   }
 }
 
-function createSkynsEntry(publicKey, dataKey) {
-  const algo = encodeURIComponent("ed25519:");
-  return `skyns://${algo}${publicKey}/${dataKey}`;
+function createSkynsEntry(entryUrl) {
+  const { query } = parseUrl(entryUrl, {});
+  const { publickey, datakey } = qs.parse(query);
+
+  return `skyns://${publickey}/${datakey}`;
 }
 
 (async () => {
@@ -69,7 +73,7 @@ function createSkynsEntry(publicKey, dataKey) {
         await skynetClient.registry.setEntry(privateKey, updatedEntry);
         const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
         console.log(`Registry entry updated: ${entryUrl}`);
-        console.log(`Skyns entry: ${createSkynsEntry(publicKey, dataKey)}`);
+        console.log(`Skyns entry: ${createSkynsEntry(entryUrl)}`);
       } catch (error) {
         outputAxiosErrorMessage(error);
 
