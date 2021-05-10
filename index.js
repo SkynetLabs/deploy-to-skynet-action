@@ -29,6 +29,11 @@ function outputAxiosErrorMessage(error) {
   }
 }
 
+function createSkynsEntry(publicKey, dataKey) {
+  const algo = encodeURIComponent("ed25519:");
+  return `skyns://${algo}${publicKey}/${dataKey}`;
+}
+
 (async () => {
   try {
     // upload to skynet
@@ -64,6 +69,7 @@ function outputAxiosErrorMessage(error) {
         await skynetClient.registry.setEntry(privateKey, updatedEntry);
         const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
         console.log(`Registry entry updated: ${entryUrl}`);
+        console.log(`Skyns entry: ${createSkynsEntry(publicKey, dataKey)}`);
       } catch (error) {
         outputAxiosErrorMessage(error);
 
