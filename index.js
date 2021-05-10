@@ -35,7 +35,7 @@ function createSkynsEntry(entryUrl) {
   const { query } = parseUrl(entryUrl, {});
   const { publickey, datakey } = qs.parse(query);
 
-  return `skyns://${publickey}/${datakey}`;
+  return `skyns://${encodeURIComponent(publickey)}/${datakey}`;
 }
 
 (async () => {
