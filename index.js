@@ -40,8 +40,9 @@ function createSkynsEntry(entryUrl) {
 
 (async () => {
   try {
+    const portalUrl = core.getInput("portal-url") ?? undefined;
     // upload to skynet
-    const skynetClient = new NodeSkynetClient();
+    const skynetClient = new NodeSkynetClient(portalUrl);
     const skylink = await skynetClient.uploadDirectory(
       core.getInput("upload-dir")
     );
@@ -60,7 +61,7 @@ function createSkynsEntry(entryUrl) {
     // if registry is properly configured, update the skylink in the entry
     if (core.getInput("registry-seed") && core.getInput("registry-datakey")) {
       try {
-        const skynetClient = new SkynetClient("https://siasky.net");
+        const skynetClient = new SkynetClient(portalUrl);
         const seed = core.getInput("registry-seed");
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
