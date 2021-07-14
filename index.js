@@ -40,9 +40,9 @@ function createSkynsEntry(entryUrl) {
 
 (async () => {
   try {
-    const portalUrl = core.getInput("portal-url") ?? undefined;
+    const portalUrl = new URL(core.getInput("portal-url"));
     // upload to skynet
-    const skynetClient = new NodeSkynetClient(portalUrl);
+    const skynetClient = new NodeSkynetClient(portalUrl.origin);
     const skylink = await skynetClient.uploadDirectory(
       core.getInput("upload-dir")
     );
@@ -53,7 +53,7 @@ function createSkynsEntry(entryUrl) {
     const rawSkylink = parseSkylink(skylink);
     const skylinkDecoded = decodeBase64(rawSkylink);
     const skylinkEncodedBase32 = encodeBase32(skylinkDecoded);
-    const skylinkUrl = `https://${skylinkEncodedBase32}.siasky.net`;
+    const skylinkUrl = `${portalUrl.protocol}//${skylinkEncodedBase32}.${portalUrl.host}`;
 
     core.setOutput("skylink-url", skylinkUrl);
     console.log(`Deployed to: ${skylinkUrl}`);
@@ -61,7 +61,7 @@ function createSkynsEntry(entryUrl) {
     // if registry is properly configured, update the skylink in the entry
     if (core.getInput("registry-seed") && core.getInput("registry-datakey")) {
       try {
-        const skynetClient = new SkynetClient(portalUrl);
+        const skynetClient = new SkynetClient(portalUrl.origin);
         const seed = core.getInput("registry-seed");
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);

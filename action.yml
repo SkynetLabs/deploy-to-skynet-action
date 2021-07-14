@@ -17,6 +17,7 @@ inputs:
     default: "skylink.txt"
   portal-url:
     description: "The portal URL to use to access Skynet, if specified."
+    default: "https://siasky.net"
 outputs:
   skylink:
     description: "Uploaded resource skylink"
