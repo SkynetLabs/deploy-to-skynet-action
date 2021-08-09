@@ -23,11 +23,12 @@ function outputAxiosErrorMessage(error) {
     const skylink = await nodeClient.uploadDirectory(
       core.getInput("upload-dir")
     );
+
+    // generate base32 skylink url from base64 skylink
+    const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {subdomain: true});
+
     core.setOutput("skylink", skylink);
     console.log(`Skylink: ${skylink}`);
-
-    // generate base32 skylink from base64 skylink
-    const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {subdomain: true});
 
     core.setOutput("skylink-url", skylinkUrl);
     console.log(`Deployed to: ${skylinkUrl}`);
