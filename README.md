@@ -22,7 +22,7 @@ Find out more about github token from [documentation](https://docs.github.com/en
 
 ### `registry-seed`
 
-You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed skylink.
+You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed resolver skylink.
 
 Public link to the registry entry will be printed in the action log.
 
@@ -45,6 +45,18 @@ Example: `sia://IAC6CkhNYuWZqMVr1gob1B6tPg4MrBGRzTaDvAIAeu9A9w`
 The resulting skylink url (base32 encoded skylink in subdomain).
 
 Example: `https://400bk2i89lheb6d8olltc2grqgfaqfge1im134ed6q1ro0g0fbnk1to.siasky.net`
+
+### `resolver-skylink`
+
+A resolver skylink pointing at the resulting skylink.
+
+Example: `sia://AQDwh1jnoZas9LaLHC_D4-2yP9XYDdZzNtz62H4Dww1jDA`
+
+### `resolver-skylink-url`
+
+The resulting resolver skylink url (base32 encoded skylink in subdomain).
+
+Example: `https://040f11qosugpdb7kmq5hobu3sfmr4fulr06tcspmrjtdgvg3oc6m630.siasky.net/`
 
 ## Example usage
 
@@ -83,7 +95,7 @@ jobs:
         run: yarn build
 
       - name: Deploy to Skynet
-        uses: kwypchlo/deploy-to-skynet-action@main
+        uses: skynetlabs/deploy-to-skynet-action@2.0
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}

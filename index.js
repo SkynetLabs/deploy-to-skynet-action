@@ -47,6 +47,7 @@ function outputAxiosErrorMessage(error) {
         const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {subdomain: true});
 
         console.log(`Registry entry updated: ${entryUrl}`);
+
         core.setOutput("resolver-skylink-url", resolverUrl);
         console.log(`Resolver Skylink Url: ${resolverUrl}`);
         core.setOutput("resolver-skylink", resolverSkylink);
