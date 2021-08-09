@@ -61,7 +61,7 @@ Example: `https://040f11qosugpdb7kmq5hobu3sfmr4fulr06tcspmrjtdgvg3oc6m630.siasky
 ## Example usage
 
 ```yaml
-uses: kwypchlo/deploy-to-skynet-action@main
+uses: skynetlabs/deploy-to-skynet-action@2.0
 with:
   upload-dir: public
   github-token: ${{ secrets.GITHUB_TOKEN }}
