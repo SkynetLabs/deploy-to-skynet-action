@@ -40,7 +40,7 @@ function outputAxiosErrorMessage(error) {
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
 
-        await skynetClient.db.setDataLink(privateKey, skylink)
+        await skynetClient.db.setDataLink(privateKey, dataKey, skylink)
         const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
         const resolverSkylink = skynetClient.registry.getEntryLink(publicKey, dataKey);
         const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {subdomain: true});
