@@ -20,6 +20,10 @@ outputs:
     description: "Uploaded resource skylink"
   skylink-url:
     description: "Uploaded resource skylink url on https://siasky.net"
+  resolver-skylink:
+    description: "Resolver skylink pointing to uploaded resource"
+  resolver-skylink-url:
+    description: "Resolver skylink url as a subdomain of https://siasky.net"
 runs:
   using: "node12"
   main: index.js

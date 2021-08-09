@@ -39,13 +39,15 @@ function outputAxiosErrorMessage(error) {
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
 
-        await skynetClient.db.setDataLink(privateKey, rawSkylink)
+        await skynetClient.db.setDataLink(privateKey, skylink)
         const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
         const resolverSkylink = skynetClient.registry.getEntryLink(publicKey, dataKey);
         const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {subdomain: true});
 
         console.log(`Registry entry updated: ${entryUrl}`);
+        core.setOutput("resolver-skylink-url", resolverUrl);
         console.log(`Resolver Skylink Url: ${resolverUrl}`);
+        core.setOutput("resolver-skylink", resolverSkylink);
         console.log(`Resolver Skylink: ${resolverSkylink}`);
       } catch (error) {
         outputAxiosErrorMessage(error);
