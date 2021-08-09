@@ -1,23 +1,7 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
 const { SkynetClient: NodeSkynetClient } = require("@nebulous/skynet");
-const { parseSkylink, genKeyPairFromSeed, SkynetClient } = require("skynet-js");
-const base64 = require("base64-js");
-const base32Encode = require("base32-encode");
-const parseUrl = require("parse-url");
-const qs = require("qs");
-
-function decodeBase64(input = "") {
-  return base64.toByteArray(
-    input.padEnd(input.length + 4 - (input.length % 4), "=")
-  );
-}
-
-function encodeBase32(input) {
-  return base32Encode(input, "RFC4648-HEX", {
-    padding: false,
-  }).toLowerCase();
-}
+const { genKeyPairFromSeed, SkynetClient } = require("skynet-js");
 
 function outputAxiosErrorMessage(error) {
   if (error.response) {
@@ -31,28 +15,19 @@ function outputAxiosErrorMessage(error) {
   }
 }
 
-function createSkynsEntry(entryUrl) {
-  const { query } = parseUrl(entryUrl, {});
-  const { publickey, datakey } = qs.parse(query);
-
-  return `skyns://${encodeURIComponent(publickey)}/${datakey}`;
-}
-
 (async () => {
   try {
     // upload to skynet
-    const skynetClient = new NodeSkynetClient();
-    const skylink = await skynetClient.uploadDirectory(
+    const nodeClient = new NodeSkynetClient();
+    const skynetClient = new SkynetClient("https://siasky.net");
+    const skylink = await nodeClient.uploadDirectory(
       core.getInput("upload-dir")
     );
     core.setOutput("skylink", skylink);
     console.log(`Skylink: ${skylink}`);
 
     // generate base32 skylink from base64 skylink
-    const rawSkylink = parseSkylink(skylink);
-    const skylinkDecoded = decodeBase64(rawSkylink);
-    const skylinkEncodedBase32 = encodeBase32(skylinkDecoded);
-    const skylinkUrl = `https://${skylinkEncodedBase32}.siasky.net`;
+    const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {subdomain: true});
 
     core.setOutput("skylink-url", skylinkUrl);
     console.log(`Deployed to: ${skylinkUrl}`);
@@ -60,20 +35,18 @@ function createSkynsEntry(entryUrl) {
     // if registry is properly configured, update the skylink in the entry
     if (core.getInput("registry-seed") && core.getInput("registry-datakey")) {
       try {
-        const skynetClient = new SkynetClient("https://siasky.net");
         const seed = core.getInput("registry-seed");
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
-        const { entry } = await skynetClient.registry.getEntry(
-          publicKey,
-          dataKey
-        );
-        const revision = entry ? entry.revision + 1 : 0;
-        const updatedEntry = { datakey: dataKey, revision, data: rawSkylink };
-        await skynetClient.registry.setEntry(privateKey, updatedEntry);
+
+        await skynetClient.db.setDataLink(privateKey, rawSkylink)
         const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
+        const resolverSkylink = skynetClient.registry.getEntryLink(publicKey, dataKey);
+        const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {subdomain: true});
+
         console.log(`Registry entry updated: ${entryUrl}`);
-        console.log(`Skyns entry: ${createSkynsEntry(entryUrl)}`);
+        console.log(`Resolver Skylink Url: ${resolverUrl}`);
+        console.log(`Resolver Skylink: ${resolverSkylink}`);
       } catch (error) {
         outputAxiosErrorMessage(error);
 
