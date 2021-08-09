@@ -41,8 +41,9 @@ function outputAxiosErrorMessage(error) {
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
 
         await skynetClient.db.setDataLink(privateKey, dataKey, skylink)
-        const entryUrl = skynetClient.registry.getEntryUrl(publicKey, dataKey);
-        const resolverSkylink = skynetClient.registry.getEntryLink(publicKey, dataKey);
+
+        const entryUrl = await skynetClient.registry.getEntryUrl(publicKey, dataKey);
+        const resolverSkylink = await skynetClient.registry.getEntryLink(publicKey, dataKey);
         const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {subdomain: true});
 
         console.log(`Registry entry updated: ${entryUrl}`);
@@ -53,7 +54,7 @@ function outputAxiosErrorMessage(error) {
       } catch (error) {
         outputAxiosErrorMessage(error);
 
-        console.log(`Failed to update registry entry ${error.message}`);
+        console.log(`Failed to update registry entry: ${error.message}`);
       }
     }
 
