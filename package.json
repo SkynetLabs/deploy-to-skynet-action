@@ -1,6 +1,6 @@
 {
   "name": "deploy-to-skynet-action",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -8,15 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kwypchlo/deploy-to-skynet-action.git"
+    "url": "git+https://github.com/SkynetLabs/deploy-to-skynet-action.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/kwypchlo/deploy-to-skynet-action/issues"
+    "url": "https://github.com/SkynetLabs/deploy-to-skynet-action/issues"
   },
-  "homepage": "https://github.com/kwypchlo/deploy-to-skynet-action#readme",
+  "homepage": "https://github.com/SkynetLabs/deploy-to-skynet-action#readme",
   "dependencies": {
     "@actions/core": "1.2.7",
     "@actions/github": "^4.0.0",
