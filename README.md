@@ -1,4 +1,5 @@
 # Deploy to Skynet action
+> :warning: This repo has been archived and moved under the new [SkynetLabs](https://github.com/SkynetLabs) repo [here](https://github.com/SkynetLabs/deploy-to-skynet-action)
 
 This action deploys a directory to [Skynet](https://siasky.net) and comments on pull request with a skylink url.
 
