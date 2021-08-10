@@ -49,7 +49,7 @@ Example: `https://400bk2i89lheb6d8olltc2grqgfaqfge1im134ed6q1ro0g0fbnk1to.siasky
 ## Example usage
 
 ```yaml
-uses: kwypchlo/deploy-to-skynet-action@main
+uses: SkynetLabs/deploy-to-skynet-action@v1
 with:
   upload-dir: public
   github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -83,7 +83,7 @@ jobs:
         run: yarn build
 
       - name: Deploy to Skynet
-        uses: kwypchlo/deploy-to-skynet-action@main
+        uses: SkynetLabs/deploy-to-skynet-action@v1
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
