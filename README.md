@@ -61,7 +61,7 @@ Example: `https://040f11qosugpdb7kmq5hobu3sfmr4fulr06tcspmrjtdgvg3oc6m630.siasky
 ## Example usage
 
 ```yaml
-uses: skynetlabs/deploy-to-skynet-action@2
+uses: skynetlabs/deploy-to-skynet-action@v2
 
 with:
   upload-dir: public
@@ -96,7 +96,7 @@ jobs:
         run: yarn build
 
       - name: Deploy to Skynet
-        uses: skynetlabs/deploy-to-skynet-action@2
+        uses: skynetlabs/deploy-to-skynet-action@v2
 
         with:
           upload-dir: public
