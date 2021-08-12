@@ -54,20 +54,20 @@ Example: `https://400bk2i89lheb6d8olltc2grqgfaqfge1im134ed6q1ro0g0fbnk1to.siasky
 
 ### `resolver-skylink`
 
-A resolver skylink pointing at the resulting skylink.
+A resolver skylink pointing at the resulting skylink. Resolver skylink will remain the same throughout the deploys, but will always resolve to the latest deploy.
 
 Example: `sia://AQDwh1jnoZas9LaLHC_D4-2yP9XYDdZzNtz62H4Dww1jDA`
 
 ### `resolver-skylink-url`
 
-The resulting resolver skylink url (base32 encoded skylink in subdomain).
+The resulting resolver skylink url (base32 encoded skylink in subdomain). Resolver skylink will remain the same throughout the deploys, but will always resolve to the latest deploy.
 
 Example: `https://040f11qosugpdb7kmq5hobu3sfmr4fulr06tcspmrjtdgvg3oc6m630.siasky.net/`
 
 ## Example usage
 
 ```yaml
-uses: skynetlabs/deploy-to-skynet-action@v2
+uses: SkynetLabs/deploy-to-skynet-action@v2
 
 with:
   upload-dir: public
@@ -101,7 +101,7 @@ jobs:
         run: yarn build
 
       - name: Deploy to Skynet
-        uses: skynetlabs/deploy-to-skynet-action@v2
+        uses: SkynetLabs/deploy-to-skynet-action@v2
 
         with:
           upload-dir: public
