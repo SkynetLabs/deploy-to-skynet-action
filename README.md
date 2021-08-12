@@ -32,6 +32,12 @@ Default value: `skylink.txt`
 
 You can define custom datakey for a registry entry when used with `registry-seed`. Change only if you want to use a specific key, default value will work in all other cases.
 
+### `portal-url`
+
+Default value: `https://siasky.net`
+
+You can override default skynet portal url with any compatible community portal or self hosted one.
+
 ## Outputs
 
 ### `skylink`
