@@ -1,6 +1,6 @@
 {
   "name": "deploy-to-skynet-action",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -18,13 +18,9 @@
   },
   "homepage": "https://github.com/SkynetLabs/deploy-to-skynet-action#readme",
   "dependencies": {
-    "@actions/core": "1.2.7",
-    "@actions/github": "^4.0.0",
-    "@nebulous/skynet": "^2.0.1",
-    "base32-encode": "1.2.0",
-    "base64-js": "1.5.1",
-    "parse-url": "5.0.2",
-    "qs": "6.10.1",
-    "skynet-js": "^2.7.0"
+    "@actions/core": "1.4.0",
+    "@actions/github": "5.0.0",
+    "@nebulous/skynet": "2.0.1",
+    "skynet-js": "4.0.12-beta"
   }
 }

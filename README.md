@@ -1,6 +1,6 @@
 # Deploy to Skynet action
 
-This action deploys a directory to [Skynet](https://siasky.net) and comments on pull request with a skylink url.
+This action deploys a directory to Skynet and comments on pull request with a skylink url (defaults to [siasky.net](https://siasky.net) portal).
 
 ![Screenshot of Pull Request notification](screenshot.png)
 
@@ -22,7 +22,7 @@ Find out more about github token from [documentation](https://docs.github.com/en
 
 ### `registry-seed`
 
-You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed skylink.
+You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed resolver skylink.
 
 Public link to the registry entry will be printed in the action log.
 
@@ -31,6 +31,12 @@ Public link to the registry entry will be printed in the action log.
 Default value: `skylink.txt`
 
 You can define custom datakey for a registry entry when used with `registry-seed`. Change only if you want to use a specific key, default value will work in all other cases.
+
+### `portal-url`
+
+Default value: `https://siasky.net`
+
+You can override default skynet portal url with any compatible community portal or self hosted one.
 
 ## Outputs
 
@@ -46,10 +52,23 @@ The resulting skylink url (base32 encoded skylink in subdomain).
 
 Example: `https://400bk2i89lheb6d8olltc2grqgfaqfge1im134ed6q1ro0g0fbnk1to.siasky.net`
 
+### `resolver-skylink`
+
+A resolver skylink pointing at the resulting skylink. Resolver skylink will remain the same throughout the deploys, but will always resolve to the latest deploy.
+
+Example: `sia://AQDwh1jnoZas9LaLHC_D4-2yP9XYDdZzNtz62H4Dww1jDA`
+
+### `resolver-skylink-url`
+
+The resulting resolver skylink url (base32 encoded skylink in subdomain). Resolver skylink will remain the same throughout the deploys, but will always resolve to the latest deploy.
+
+Example: `https://040f11qosugpdb7kmq5hobu3sfmr4fulr06tcspmrjtdgvg3oc6m630.siasky.net/`
+
 ## Example usage
 
 ```yaml
-uses: SkynetLabs/deploy-to-skynet-action@v1
+uses: SkynetLabs/deploy-to-skynet-action@v2
+
 with:
   upload-dir: public
   github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -71,10 +90,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js
-        uses: actions/setup-node@v1
+      - uses: actions/setup-node@v2
         with:
-          node-version: 14.x
+          node-version: 16.x
 
       - name: Install dependencies
         run: yarn
@@ -83,7 +101,8 @@ jobs:
         run: yarn build
 
       - name: Deploy to Skynet
-        uses: SkynetLabs/deploy-to-skynet-action@v1
+        uses: SkynetLabs/deploy-to-skynet-action@v2
+
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
