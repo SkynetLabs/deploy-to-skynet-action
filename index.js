@@ -18,14 +18,16 @@ function outputAxiosErrorMessage(error) {
 (async () => {
   try {
     // upload to skynet
-    const nodeClient = new NodeSkynetClient();
-    const skynetClient = new SkynetClient("https://siasky.net");
+    const nodeClient = new NodeSkynetClient(core.getInput("portal-url"));
+    const skynetClient = new SkynetClient(core.getInput("portal-url"));
     const skylink = await nodeClient.uploadDirectory(
       core.getInput("upload-dir")
     );
 
     // generate base32 skylink url from base64 skylink
-    const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {subdomain: true});
+    const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {
+      subdomain: true,
+    });
 
     core.setOutput("skylink", skylink);
     console.log(`Skylink: ${skylink}`);
@@ -40,16 +42,20 @@ function outputAxiosErrorMessage(error) {
         const dataKey = core.getInput("registry-datakey");
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
 
-        await skynetClient.db.setDataLink(privateKey, dataKey, skylink)
-
-        const entryUrl = await skynetClient.registry.getEntryUrl(publicKey, dataKey);
-        const resolverSkylink = await skynetClient.registry.getEntryLink(publicKey, dataKey);
-        const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {subdomain: true});
+        const [entryUrl, resolverSkylink] = await Promise.all([
+          skynetClient.registry.getEntryUrl(publicKey, dataKey),
+          skynetClient.registry.getEntryLink(publicKey, dataKey),
+          skynetClient.db.setDataLink(privateKey, dataKey, skylink),
+        ]);
+        const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {
+          subdomain: true,
+        });
 
         console.log(`Registry entry updated: ${entryUrl}`);
 
         core.setOutput("resolver-skylink-url", resolverUrl);
         console.log(`Resolver Skylink Url: ${resolverUrl}`);
+
         core.setOutput("resolver-skylink", resolverSkylink);
         console.log(`Resolver Skylink: ${resolverSkylink}`);
       } catch (error) {

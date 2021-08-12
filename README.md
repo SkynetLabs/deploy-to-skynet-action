@@ -1,6 +1,6 @@
 # Deploy to Skynet action
 
-This action deploys a directory to [Skynet](https://siasky.net) and comments on pull request with a skylink url.
+This action deploys a directory to Skynet and comments on pull request with a skylink url (defaults to [siasky.net](https://siasky.net) portal).
 
 ![Screenshot of Pull Request notification](screenshot.png)
 
@@ -84,10 +84,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js
-        uses: actions/setup-node@v1
+      - uses: actions/setup-node@v2
         with:
-          node-version: 14.x
+          node-version: 16.x
 
       - name: Install dependencies
         run: yarn
