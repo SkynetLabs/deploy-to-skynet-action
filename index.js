@@ -71,7 +71,7 @@ function outputAxiosErrorMessage(error) {
       const octokit = github.getOctokit(gitHubToken);
 
       try {
-        await octokit.issues.createComment({
+        await octokit.rest.issues.createComment({
           ...github.context.repo,
           issue_number: github.context.issue.number,
           body: `Deployed to ${skylinkUrl}<br>Skylink: \`${skylink}\``,
