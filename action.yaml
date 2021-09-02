@@ -1,0 +1,35 @@
+name: 'Deploy to Skynet'
+description: 'Deploy your static webapp to Skynet'
+branding:
+  icon: 'cloud'
+  color: 'green'
+inputs:
+  upload-dir:
+    description: 'Directory to upload'
+    required: true
+  github-token:
+    description: 'Github token used for including the skylink url in pull request'
+    required: true
+  registry-seed:
+    description: 'Seed that generates registry private key (optional, only if you want to update the registry entry with skylink)'
+    required: false
+  registry-datakey:
+    description: 'Registry datakey to use when updating the registry entry'
+    required: true
+    default: 'skylink.txt'
+  portal-url:
+    description: 'Skynet portal api url'
+    required: true
+    default: 'https://siasky.net'
+outputs:
+  skylink:
+    description: 'Uploaded resource skylink'
+  skylink-url:
+    description: 'Uploaded resource skylink url'
+  resolver-skylink:
+    description: 'Resolver skylink pointing to uploaded resource'
+  resolver-skylink-url:
+    description: 'Resolver skylink url (as a subdomain)'
+runs:
+  using: 'node12'
+  main: index.js
