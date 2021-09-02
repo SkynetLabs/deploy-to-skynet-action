@@ -1,4 +1,4 @@
-name: 'Deploy to Skynet'
+name: 'Skynet Deploy'
 description: 'Deploy your static webapp to Skynet'
 branding:
   icon: 'cloud'
