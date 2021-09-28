@@ -1,6 +1,6 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
-const { SkynetClient: NodeSkynetClient } = require("@nebulous/skynet");
+const { SkynetClient: NodeSkynetClient } = require("@skynetlabs/skynet-nodejs");
 const { genKeyPairFromSeed, SkynetClient } = require("skynet-js");
 
 function outputAxiosErrorMessage(error) {

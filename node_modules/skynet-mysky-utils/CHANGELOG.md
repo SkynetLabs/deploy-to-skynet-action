@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0]
+
+### Changed
+
+- **[Breaking change]** Path functions return paths as lowercase.
+- **[Breaking change]** Path functions return `null` for cases that were previously allowed.
+
+### Removed
+
+- **[Breaking change]** Removed deprecated 'CustomUserIDOptions'.
+
 ## [0.2.3]
 
 ### Added
