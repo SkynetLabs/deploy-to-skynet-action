@@ -32,7 +32,7 @@ function prepareUploadOptions() {
 
   if (core.getInput("not-found-page")) {
     // transform not-found-page input which is a single file path into
-    // and url encoded stringified object with a 404 key and its value
+    // a url encoded stringified object with a 404 key and its value
     // being the specified path
     try {
       options.errorpages = encodeURIComponent(
