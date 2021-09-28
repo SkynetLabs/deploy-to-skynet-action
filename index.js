@@ -15,13 +15,40 @@ function outputAxiosErrorMessage(error) {
   }
 }
 
+function prepareUploadOptions() {
+  const options = {};
+
+  if (core.getInput("try-files")) {
+    try {
+      options.tryfiles = encodeURIComponent(
+        JSON.stringify(core.getInput("try-files").split(/\s+/))
+      );
+    } catch (error) {
+      throw new Error(`tryfiles input parsing error: ${error.message}`);
+    }
+  }
+
+  if (core.getInput("not-found-page")) {
+    try {
+      options.errorpages = encodeURIComponent(
+        JSON.stringify({ 404: core.getInput("not-found-page") })
+      );
+    } catch (error) {
+      throw new Error(`not-found-page input parsing error: ${error.message}`);
+    }
+  }
+
+  return options;
+}
+
 (async () => {
   try {
     // upload to skynet
     const nodeClient = new NodeSkynetClient(core.getInput("portal-url"));
     const skynetClient = new SkynetClient(core.getInput("portal-url"));
     const skylink = await nodeClient.uploadDirectory(
-      core.getInput("upload-dir")
+      core.getInput("upload-dir"),
+      prepareUploadOptions()
     );
 
     // generate base32 skylink url from base64 skylink
