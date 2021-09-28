@@ -2,13 +2,15 @@ export const errorWindowClosed = "window-closed";
 export const dispatchedErrorEvent = "catchError";
 
 export class PromiseController {
-  cleanup() {
+  cleanup(): void {
     // Empty until implemented in monitorWindowError.
   }
 }
 
 /**
  * Checks if there has been an error from the window on an interval.
+ *
+ * @returns - The promise that rejects if the listener encounters an error from the remote window, and a controller that can abort the event listener and clean up the promise.
  */
 export function monitorWindowError(): {
   promise: Promise<void>;
@@ -18,10 +20,10 @@ export function monitorWindowError(): {
   const abortController = new AbortController();
 
   const promise: Promise<void> = new Promise((resolve, reject) => {
-    const handleEvent = function (e: any) {
+    const handleEvent = function (event: Event) {
       window.removeEventListener(dispatchedErrorEvent, handleEvent);
 
-      const err = e.detail;
+      const err = (<CustomEvent>event).detail;
       reject(err);
     };
     // @ts-expect-error doesn't recognize signal option.

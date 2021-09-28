@@ -15,13 +15,15 @@
     "plugin:@typescript-eslint/recommended"
   ],
   "rules": {
-    "@typescript-eslint/no-explicit-any": 0,
-    "@typescript-eslint/no-non-null-assertion": 0,
+    "no-bitwise": 1,
 
-    "jsdoc/require-description": 0,
+    "@typescript-eslint/no-explicit-any": 1,
+    "@typescript-eslint/no-non-null-assertion": 1,
+
+    "jsdoc/require-description": 1,
     "jsdoc/require-param-type": 0,
     "jsdoc/require-property-type": 0,
     "jsdoc/require-returns-type": 0,
-    "jsdoc/require-throws": 0
+    "jsdoc/require-throws": 1
   }
 }
