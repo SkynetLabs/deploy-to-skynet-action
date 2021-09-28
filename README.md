@@ -20,6 +20,16 @@ This action requires the upload directory to be already available so you will ne
 
 Find out more about github token from [documentation](https://docs.github.com/en/free-pro-team@latest/actions/reference/authentication-in-a-workflow).
 
+### `try-files`
+
+Default value: `index.html`
+
+Define a list of space separated files that portal should try to serve in if uri points to a directory, ie `index.html /index.html`.
+
+### `not-found-page`
+
+Define a path to a file that will replace the default 404 Not Found error page, ie `404.html`.
+
 ### `registry-seed`
 
 You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed resolver skylink.

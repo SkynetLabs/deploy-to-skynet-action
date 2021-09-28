@@ -15,13 +15,32 @@ function outputAxiosErrorMessage(error) {
   }
 }
 
+function prepareUploadOptions() {
+  const options = {};
+
+  if (core.getInput("try-files")) {
+    // transform try-files input which is space separated list
+    // of file paths into an array of those paths
+    options.tryFiles = core.getInput("try-files").split(/\s+/);
+  }
+
+  if (core.getInput("not-found-page")) {
+    // transform not-found-page input which is a single file path into
+    // an object with a 404 key and its value being the specified path
+    options.errorPages = { 404: core.getInput("not-found-page") };
+  }
+
+  return options;
+}
+
 (async () => {
   try {
     // upload to skynet
     const nodeClient = new NodeSkynetClient(core.getInput("portal-url"));
     const skynetClient = new SkynetClient(core.getInput("portal-url"));
     const skylink = await nodeClient.uploadDirectory(
-      core.getInput("upload-dir")
+      core.getInput("upload-dir"),
+      prepareUploadOptions()
     );
 
     // generate base32 skylink url from base64 skylink
