@@ -20,6 +20,8 @@ function prepareUploadOptions() {
 
   if (core.getInput("try-files")) {
     try {
+      // transform try-files input which is space separated list of file paths
+      // into an url encoded stringified array of those paths
       options.tryfiles = encodeURIComponent(
         JSON.stringify(core.getInput("try-files").split(/\s+/))
       );
@@ -29,6 +31,9 @@ function prepareUploadOptions() {
   }
 
   if (core.getInput("not-found-page")) {
+    // transform not-found-page input which is a single file path into
+    // and url encoded stringified object with a 404 key and its value
+    // being the specified path
     try {
       options.errorpages = encodeURIComponent(
         JSON.stringify({ 404: core.getInput("not-found-page") })
