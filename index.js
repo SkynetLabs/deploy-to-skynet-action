@@ -19,28 +19,15 @@ function prepareUploadOptions() {
   const options = {};
 
   if (core.getInput("try-files")) {
-    try {
-      // transform try-files input which is space separated list of file paths
-      // into an url encoded stringified array of those paths
-      options.tryfiles = encodeURIComponent(
-        JSON.stringify(core.getInput("try-files").split(/\s+/))
-      );
-    } catch (error) {
-      throw new Error(`tryfiles input parsing error: ${error.message}`);
-    }
+    // transform try-files input which is space separated list
+    // of file paths into an array of those paths
+    options.tryFiles = core.getInput("try-files").split(/\s+/);
   }
 
   if (core.getInput("not-found-page")) {
     // transform not-found-page input which is a single file path into
-    // a url encoded stringified object with a 404 key and its value
-    // being the specified path
-    try {
-      options.errorpages = encodeURIComponent(
-        JSON.stringify({ 404: core.getInput("not-found-page") })
-      );
-    } catch (error) {
-      throw new Error(`not-found-page input parsing error: ${error.message}`);
-    }
+    // an object with a 404 key and its value being the specified path
+    options.errorPages = { 404: core.getInput("not-found-page") };
   }
 
   return options;
