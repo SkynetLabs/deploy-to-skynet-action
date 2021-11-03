@@ -20,7 +20,6 @@
   "dependencies": {
     "@actions/core": "1.5.0",
     "@actions/github": "5.0.0",
-    "@skynetlabs/skynet-nodejs": "2.2.0",
-    "skynet-js": "4.0.17-beta"
+    "@skynetlabs/skynet-nodejs": "^2.3.1"
   }
 }
