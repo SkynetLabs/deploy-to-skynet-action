@@ -32,6 +32,8 @@ Define a path to a file that will replace the default 404 Not Found error page, 
 
 ### `registry-seed`
 
+**USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
+
 You can provide a seed (keep it secret, keep it safe) and this action will set corresponding skynet registry entry value to the deployed resolver skylink.
 
 Public link to the registry entry will be printed in the action log.
@@ -47,6 +49,12 @@ You can define custom datakey for a registry entry when used with `registry-seed
 Default value: `https://siasky.net`
 
 You can override default skynet portal url with any compatible community portal or self hosted one.
+
+### `skynet-jwt`
+
+**USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
+
+Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB.
 
 ## Outputs
 
@@ -78,7 +86,6 @@ Example: `https://040f11qosugpdb7kmq5hobu3sfmr4fulr06tcspmrjtdgvg3oc6m630.siasky
 
 ```yaml
 uses: SkynetLabs/deploy-to-skynet-action@v2
-
 with:
   upload-dir: public
   github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -112,7 +119,6 @@ jobs:
 
       - name: Deploy to Skynet
         uses: SkynetLabs/deploy-to-skynet-action@v2
-
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
