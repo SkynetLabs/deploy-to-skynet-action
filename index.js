@@ -33,8 +33,7 @@ function prepareUploadOptions() {
   }
 
   if (core.getInput("skynet-jwt")) {
-    // transform not-found-page input which is a single file path into
-    // an object with a 404 key and its value being the specified path
+    // transform skynet-jwt into a cookie accepted format
     options.customCookie = `skynet-jwt=${core.getInput("skynet-jwt")}`;
   }
 
