@@ -44,14 +44,14 @@ function prepareUploadOptions() {
 (async () => {
   try {
     // upload to skynet
-    const client = new SkynetClient(core.getInput("portal-url"));
-    const skylink = await client.uploadDirectory(
+    const skynetClient = new SkynetClient(core.getInput("portal-url"));
+    const skylink = await skynetClient.uploadDirectory(
       core.getInput("upload-dir"),
       prepareUploadOptions()
     );
 
     // generate base32 skylink url from base64 skylink
-    const skylinkUrl = await client.getSkylinkUrl(skylink, {
+    const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {
       subdomain: true,
     });
 
@@ -69,11 +69,11 @@ function prepareUploadOptions() {
         const { publicKey, privateKey } = genKeyPairFromSeed(seed);
 
         const [entryUrl, resolverSkylink] = await Promise.all([
-          client.registry.getEntryUrl(publicKey, dataKey),
-          client.registry.getEntryLink(publicKey, dataKey),
-          client.db.setDataLink(privateKey, dataKey, skylink),
+          skynetClient.registry.getEntryUrl(publicKey, dataKey),
+          skynetClient.registry.getEntryLink(publicKey, dataKey),
+          skynetClient.db.setDataLink(privateKey, dataKey, skylink),
         ]);
-        const resolverUrl = await client.getSkylinkUrl(resolverSkylink, {
+        const resolverUrl = await skynetClient.getSkylinkUrl(resolverSkylink, {
           subdomain: true,
         });
 
