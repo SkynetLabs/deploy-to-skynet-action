@@ -55,6 +55,7 @@ You can override default skynet portal url with any compatible community portal 
 **USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
 
 Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB.
+[Obtaining your JWT.](https://docs.siasky.net/developer-guides/server-hosted-skynet-usage#obtaining-your-jwt)
 
 ## Outputs
 
