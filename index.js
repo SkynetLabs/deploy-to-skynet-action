@@ -1,7 +1,9 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
-const { SkynetClient: NodeSkynetClient } = require("@skynetlabs/skynet-nodejs");
-const { genKeyPairFromSeed, SkynetClient } = require("skynet-js");
+const {
+  SkynetClient,
+  genKeyPairFromSeed,
+} = require("@skynetlabs/skynet-nodejs");
 
 function outputAxiosErrorMessage(error) {
   if (error.response) {
@@ -30,15 +32,19 @@ function prepareUploadOptions() {
     options.errorPages = { 404: core.getInput("not-found-page") };
   }
 
+  if (core.getInput("skynet-jwt")) {
+    // transform skynet-jwt into a cookie accepted format
+    options.customCookie = `skynet-jwt=${core.getInput("skynet-jwt")}`;
+  }
+
   return options;
 }
 
 (async () => {
   try {
     // upload to skynet
-    const nodeClient = new NodeSkynetClient(core.getInput("portal-url"));
     const skynetClient = new SkynetClient(core.getInput("portal-url"));
-    const skylink = await nodeClient.uploadDirectory(
+    const skylink = await skynetClient.uploadDirectory(
       core.getInput("upload-dir"),
       prepareUploadOptions()
     );
