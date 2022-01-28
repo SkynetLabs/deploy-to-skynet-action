@@ -17,6 +17,17 @@ function outputAxiosErrorMessage(error) {
   }
 }
 
+function prepareClientOptions() {
+  const options = {};
+
+  if (core.getInput("skynet-jwt")) {
+    // transform skynet-jwt into a cookie accepted format
+    options.customCookie = `skynet-jwt=${core.getInput("skynet-jwt")}`;
+  }
+
+  return options;
+}
+
 function prepareUploadOptions() {
   const options = {};
 
@@ -32,18 +43,16 @@ function prepareUploadOptions() {
     options.errorPages = { 404: core.getInput("not-found-page") };
   }
 
-  if (core.getInput("skynet-jwt")) {
-    // transform skynet-jwt into a cookie accepted format
-    options.customCookie = `skynet-jwt=${core.getInput("skynet-jwt")}`;
-  }
-
   return options;
 }
 
 (async () => {
   try {
     // upload to skynet
-    const skynetClient = new SkynetClient(core.getInput("portal-url"));
+    const skynetClient = new SkynetClient(
+      core.getInput("portal-url"),
+      prepareClientOptions()
+    );
     const skylink = await skynetClient.uploadDirectory(
       core.getInput("upload-dir"),
       prepareUploadOptions()
