@@ -1,45 +1,48 @@
-name: "Skynet Deploy"
-description: "Deploy your static webapp to Skynet"
+name: 'Skynet Deploy'
+description: 'Deploy your static webapp to Skynet'
 branding:
-  icon: "cloud"
-  color: "green"
+  icon: 'cloud'
+  color: 'green'
 inputs:
   upload-dir:
-    description: "Directory to upload"
+    description: 'Directory to upload'
     required: true
   github-token:
-    description: "Github token used for including the skylink url in pull request"
+    description: 'Github token used for including the skylink url in pull request'
     required: true
   try-files:
-    description: "Define a list of space separated files that portal should try to serve in if uri points to a directory"
+    description: 'Define a list of space separated files that portal should try to serve in if uri points to a directory'
     required: false
-    default: "index.html"
+    default: 'index.html'
   not-found-page:
-    description: "Define a path to a file that will replace the default 404 Not Found error page"
+    description: 'Define a path to a file that will replace the default 404 Not Found error page'
     required: false
   registry-seed:
-    description: "Seed that generates registry private key (optional, only if you want to update the registry entry with skylink)"
+    description: 'Seed that generates registry private key (optional, only if you want to update the registry entry with skylink)'
     required: false
   registry-datakey:
-    description: "Registry datakey to use when updating the registry entry"
+    description: 'Registry datakey to use when updating the registry entry'
     required: true
-    default: "skylink.txt"
+    default: 'skylink.txt'
   portal-url:
-    description: "Skynet portal api url"
+    description: 'Skynet portal api url'
     required: true
-    default: "https://siasky.net"
+    default: 'https://siasky.net'
+  skynet-api-key:
+    description: 'Portal account private API key used for association uploads with a specific account. Also used to allow uploads larger than 1GB or access account-only portals.'
+    required: false
   skynet-jwt:
-    description: "Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB."
+    description: 'Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB.'
     required: false
 outputs:
   skylink:
-    description: "Uploaded resource skylink"
+    description: 'Uploaded resource skylink'
   skylink-url:
-    description: "Uploaded resource skylink url"
+    description: 'Uploaded resource skylink url'
   resolver-skylink:
-    description: "Resolver skylink pointing to uploaded resource"
+    description: 'Resolver skylink pointing to uploaded resource'
   resolver-skylink-url:
-    description: "Resolver skylink url (as a subdomain)"
+    description: 'Resolver skylink url (as a subdomain)'
 runs:
-  using: "node12"
+  using: 'node12'
   main: index.js
