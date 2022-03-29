@@ -59,9 +59,9 @@ Portal account private API key used for associating uploads with a specific acco
 
 ### `skynet-jwt`
 
-**USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
+_(**Deprecated.** Use `skynet-api-key` instead.)_
 
-_(`skynet-api-key` is now the recommended over `skynet-jwt`)_
+**USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
 
 Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB or access account-only portals.
 [Obtaining your JWT.](https://docs.siasky.net/developer-guides/server-hosted-skynet-usage#obtaining-your-jwt)
