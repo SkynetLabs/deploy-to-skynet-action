@@ -28,8 +28,11 @@ inputs:
     description: "Skynet portal api url"
     required: true
     default: "https://siasky.net"
+  skynet-api-key:
+    description: "Portal account private API key used for association uploads with a specific account. Also used to allow uploads larger than 1GB or access account-only portals."
+    required: false
   skynet-jwt:
-    description: "Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB."
+    description: "Deprecated. Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB."
     required: false
 outputs:
   skylink:

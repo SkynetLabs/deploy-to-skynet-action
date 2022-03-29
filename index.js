@@ -25,6 +25,11 @@ function prepareClientOptions() {
     options.customCookie = `skynet-jwt=${core.getInput("skynet-jwt")}`;
   }
 
+  if (core.getInput("skynet-api-key")) {
+    // set Skynet Api Key
+    options.skynetApiKey = core.getInput("skynet-api-key");
+  }
+
   return options;
 }
 

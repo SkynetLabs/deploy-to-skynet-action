@@ -50,11 +50,20 @@ Default value: `https://siasky.net`
 
 You can override default skynet portal url with any compatible community portal or self hosted one.
 
-### `skynet-jwt`
+### `skynet-api-key`
 
 **USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
 
-Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB.
+Portal account private API key used for associating uploads with a specific account. Also used to allow uploads larger than 1GB or access account-only portals.
+[Creating an API key.](https://docs.skynetlabs.com/developer-guides/server-hosted-skynet-usage#obtaining-your-skynet-api-key)
+
+### `skynet-jwt`
+
+_(**Deprecated.** Use `skynet-api-key` instead.)_
+
+**USE GITHUB SECRET - DO NOT COMMIT THIS IN PLAIN TEXT**
+
+Portal account JWT used for associating uploads with a specific account. Also used to allow uploads larger than 1GB or access account-only portals.
 [Obtaining your JWT.](https://docs.siasky.net/developer-guides/server-hosted-skynet-usage#obtaining-your-jwt)
 
 ## Outputs
@@ -123,5 +132,7 @@ jobs:
         with:
           upload-dir: public
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          portal-url: https://skynetfree.net
+          skynet-api-key: ${{ secrets.SKYNET_API_KEY }}
           registry-seed: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.REGISTRY_SEED || '' }}
 ```
