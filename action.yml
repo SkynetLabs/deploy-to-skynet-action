@@ -44,5 +44,5 @@ outputs:
   resolver-skylink-url:
     description: "Resolver skylink url (as a subdomain)"
 runs:
-  using: "node12"
+  using: "node16"
   main: "dist/index.js"
