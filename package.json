@@ -1,9 +1,10 @@
 {
   "name": "deploy-to-skynet-action",
   "version": "2.1.1",
-  "description": "",
+  "description": "Github action that deploys a directory to Skynet and comments on pull request with a skylink url",
   "main": "index.js",
   "scripts": {
+    "build": "ncc build index.js --license licenses.txt",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -11,15 +12,18 @@
     "url": "git+https://github.com/SkynetLabs/deploy-to-skynet-action.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Skynet Labs",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/SkynetLabs/deploy-to-skynet-action/issues"
   },
   "homepage": "https://github.com/SkynetLabs/deploy-to-skynet-action#readme",
   "dependencies": {
-    "@actions/core": "1.5.0",
-    "@actions/github": "5.0.0",
+    "@actions/core": "^1.5.0",
+    "@actions/github": "^5.0.0",
     "@skynetlabs/skynet-nodejs": "^2.5.1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.33.4"
   }
 }
