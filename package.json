@@ -24,6 +24,6 @@
     "@skynetlabs/skynet-nodejs": "^2.5.1"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.33.4"
+    "@vercel/ncc": "^0.34.0"
   }
 }
