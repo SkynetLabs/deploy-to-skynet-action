@@ -5,6 +5,8 @@ const {
   genKeyPairFromSeed,
 } = require("@skynetlabs/skynet-nodejs");
 
+console.log("test auto updater script");
+
 function outputAxiosErrorMessage(error) {
   if (error.response) {
     const { path, method } = error.request;
