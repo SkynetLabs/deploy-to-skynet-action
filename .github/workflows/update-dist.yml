@@ -1,0 +1,39 @@
+name: Update Dist
+
+on:
+  - pull_request
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: update dist/index.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILE_TO_COMMIT: dist/index.js
+        run: |
+          git diff --exit-code -s $FILE_TO_COMMIT && echo "Everything up-to-date" && exit 0
+          gh api --method PUT /repos/:owner/:repo/contents/$FILE_TO_COMMIT \
+            --field message="chore: regenerate $FILE_TO_COMMIT" \
+            --field content=@<( base64 -i $FILE_TO_COMMIT ) \
+            --field branch="${{ github.head_ref }}" \
+            --field sha="$( git rev-parse remotes/origin/${{ github.head_ref }}:$FILE_TO_COMMIT )"
+      - name: update dist/licenses.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILE_TO_COMMIT: dist/licenses.txt
+        run: |
+          git diff --exit-code -s $FILE_TO_COMMIT && echo "Everything up-to-date" && exit 0
+          gh api --method PUT /repos/:owner/:repo/contents/$FILE_TO_COMMIT \
+            --field message="chore: regenerate $FILE_TO_COMMIT" \
+            --field content=@<( base64 -i $FILE_TO_COMMIT ) \
+            --field branch="${{ github.head_ref }}" \
+            --field sha="$( git rev-parse remotes/origin/${{ github.head_ref }}:$FILE_TO_COMMIT )"
