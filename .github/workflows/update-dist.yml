@@ -20,6 +20,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FILE_TO_COMMIT: dist/index.js
         run: |
+          git show-ref
           git diff --exit-code -s $FILE_TO_COMMIT && echo "Everything up-to-date" && exit 0
           gh api --method PUT /repos/:owner/:repo/contents/$FILE_TO_COMMIT \
             --field message="chore: regenerate $FILE_TO_COMMIT" \
