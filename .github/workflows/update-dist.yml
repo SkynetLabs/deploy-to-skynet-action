@@ -27,8 +27,8 @@ jobs:
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
-          gh workflow run static-code-analysis.yml
-          gh workflow run update-dist.yml
+          gh workflow run static-code-analysis.yml --ref ${{ github.ref }}
+          gh workflow run update-dist.yml --ref ${{ github.ref }}
       - name: update dist/licenses.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,5 +40,5 @@ jobs:
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
-          gh workflow run static-code-analysis.yml
-          gh workflow run update-dist.yml
+          gh workflow run static-code-analysis.yml --ref ${{ github.ref }}
+          gh workflow run update-dist.yml --ref ${{ github.ref }}
