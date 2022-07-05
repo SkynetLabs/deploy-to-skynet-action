@@ -1,7 +1,7 @@
 name: Update Dist
 
 on:
-  - pull_request
+  - push
 
 jobs:
   build:
@@ -31,8 +31,8 @@ jobs:
           gh api --method PUT /repos/:owner/:repo/contents/$FILE_TO_COMMIT \
             --field message="chore: regenerate $FILE_TO_COMMIT" \
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
-            --field branch="${{ github.head_ref }}" \
-            --field sha="$( git rev-parse remotes/origin/${{ github.head_ref }}:$FILE_TO_COMMIT )"
+            --field branch="${{ github.ref }}" \
+            --field sha="$( git rev-parse remotes/origin/${{ github.ref }}:$FILE_TO_COMMIT )"
       - name: update dist/licenses.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,5 +42,5 @@ jobs:
           gh api --method PUT /repos/:owner/:repo/contents/$FILE_TO_COMMIT \
             --field message="chore: regenerate $FILE_TO_COMMIT" \
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
-            --field branch="${{ github.head_ref }}" \
-            --field sha="$( git rev-parse remotes/origin/${{ github.head_ref }}:$FILE_TO_COMMIT )"
+            --field branch="${{ github.ref }}" \
+            --field sha="$( git rev-parse remotes/origin/${{ github.ref }}:$FILE_TO_COMMIT )"
