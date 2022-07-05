@@ -425,6 +425,13 @@ Object.defineProperty(exports, "summary", ({ enumerable: true, get: function () 
  */
 var summary_2 = __nccwpck_require__(1327);
 Object.defineProperty(exports, "markdownSummary", ({ enumerable: true, get: function () { return summary_2.markdownSummary; } }));
+/**
+ * Path exports
+ */
+var path_utils_1 = __nccwpck_require__(2981);
+Object.defineProperty(exports, "toPosixPath", ({ enumerable: true, get: function () { return path_utils_1.toPosixPath; } }));
+Object.defineProperty(exports, "toWin32Path", ({ enumerable: true, get: function () { return path_utils_1.toWin32Path; } }));
+Object.defineProperty(exports, "toPlatformPath", ({ enumerable: true, get: function () { return path_utils_1.toPlatformPath; } }));
 //# sourceMappingURL=core.js.map
 
 /***/ }),
@@ -559,6 +566,71 @@ class OidcClient {
 }
 exports.OidcClient = OidcClient;
 //# sourceMappingURL=oidc-utils.js.map
+
+/***/ }),
+
+/***/ 2981:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.toPlatformPath = exports.toWin32Path = exports.toPosixPath = void 0;
+const path = __importStar(__nccwpck_require__(1017));
+/**
+ * toPosixPath converts the given path to the posix form. On Windows, \\ will be
+ * replaced with /.
+ *
+ * @param pth. Path to transform.
+ * @return string Posix path.
+ */
+function toPosixPath(pth) {
+    return pth.replace(/[\\]/g, '/');
+}
+exports.toPosixPath = toPosixPath;
+/**
+ * toWin32Path converts the given path to the win32 form. On Linux, / will be
+ * replaced with \\.
+ *
+ * @param pth. Path to transform.
+ * @return string Win32 path.
+ */
+function toWin32Path(pth) {
+    return pth.replace(/[/]/g, '\\');
+}
+exports.toWin32Path = toWin32Path;
+/**
+ * toPlatformPath converts the given path to a platform-specific path. It does
+ * this by replacing instances of / and \ with the platform-specific path
+ * separator.
+ *
+ * @param pth The path to platformize.
+ * @return string The platform-specific path.
+ */
+function toPlatformPath(pth) {
+    return pth.replace(/[/\\]/g, path.sep);
+}
+exports.toPlatformPath = toPlatformPath;
+//# sourceMappingURL=path-utils.js.map
 
 /***/ }),
 
@@ -4186,6 +4258,7 @@ exports.request = request;
 
 const { SkynetClient } = __nccwpck_require__(6360);
 const { defaultOptions, defaultSkynetPortalUrl, defaultPortalUrl, uriSkynetPrefix } = __nccwpck_require__(7964);
+const { formatSkylink } = __nccwpck_require__(5688);
 
 const { genKeyPairAndSeed, genKeyPairFromSeed, getEntryLink } = __nccwpck_require__(2528);
 
@@ -4196,6 +4269,7 @@ module.exports = {
   defaultPortalUrl,
   defaultSkynetPortalUrl,
   uriSkynetPrefix,
+  formatSkylink,
 
   // Re-export utilities from skynet-js.
 
@@ -4207,7 +4281,1061 @@ module.exports = {
 
 /***/ }),
 
-/***/ 831:
+/***/ 6360:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const axios = __nccwpck_require__(6545);
+const { SkynetClient: BrowserSkynetClient } = __nccwpck_require__(2528);
+
+const { defaultPortalUrl, makeUrl } = __nccwpck_require__(7964);
+
+const { setJSONdbV1 } = __nccwpck_require__(3073);
+const { setJSONdbV2 } = __nccwpck_require__(2666);
+
+class SkynetClient {
+  /**
+   * The Skynet Client which can be used to access Skynet.
+   * @constructor
+   * @param {string} [portalUrl="https://siasky.net"] - The portal URL to use to access Skynet, if specified. To use the default portal while passing custom options, use "".
+   * @param {Object} [customOptions={}] - Configuration for the client.
+   * @param {string} [customOptions.APIKey] - Authentication password to use.
+   * @param {string} [customOptions.skynetApiKey] - Authentication API key to use for a Skynet portal (sets the "Skynet-Api-Key" header).
+   * @param {string} [customCookie=""] - Custom cookie header to set.
+   * @param {string} [customOptions.customUserAgent=""] - Custom user agent header to set.
+   * @param {Function} [customOptions.onUploadProgress] - Optional callback to track progress.
+   */
+  constructor(portalUrl, customOptions = {}) {
+    // Check if portal URL provided twice.
+
+    if (portalUrl && customOptions.portalUrl) {
+      throw new Error(
+        "Both 'portalUrl' parameter provided and 'customOptions.portalUrl' provided. Please pass only one in order to avoid conflicts."
+      );
+    }
+
+    // Add portal URL to options if given.
+
+    this.customOptions = { ...customOptions };
+    // If portal was not given, the default portal URL will be used.
+    if (portalUrl) {
+      // Set the portalUrl if given.
+      this.customOptions.portalUrl = portalUrl;
+    }
+
+    // Re-export selected client methods from skynet-js.
+
+    // Create the browser client. It requires an explicit portal URL to be passed in Node contexts. We also have to pass valid custom options, so we remove any unexpected ones.
+    const browserClientOptions = { ...this.customOptions };
+    delete browserClientOptions.portalUrl;
+    const browserClient = new BrowserSkynetClient(portalUrl || defaultPortalUrl(), browserClientOptions);
+    this.browserClient = browserClient;
+
+    // Download
+    this.getSkylinkUrl = browserClient.getSkylinkUrl.bind(browserClient);
+    this.getMetadata = browserClient.getMetadata.bind(browserClient);
+
+    // File API
+    this.file = {
+      getEntryData: browserClient.file.getEntryData.bind(browserClient),
+      getEntryLink: browserClient.file.getEntryLink.bind(browserClient),
+    };
+
+    // SkyDB
+    this.db = {
+      getJSON: browserClient.db.getJSON.bind(browserClient),
+      // We define `setJSONdbV1` in this SDK, so bind it to the current client.
+      setJSON: setJSONdbV1.bind(this),
+      deleteJSON: browserClient.db.deleteJSON.bind(browserClient),
+      setDataLink: browserClient.db.setDataLink.bind(browserClient),
+      getEntryData: browserClient.db.getEntryData.bind(browserClient),
+      setEntryData: browserClient.db.setEntryData.bind(browserClient),
+      deleteEntryData: browserClient.db.deleteEntryData.bind(browserClient),
+      getRawBytes: browserClient.db.getRawBytes.bind(browserClient),
+    };
+
+    // SkyDB V2
+    this.dbV2 = {
+      getJSON: browserClient.dbV2.getJSON.bind(browserClient),
+      // We define `setJSONdbV1` in this SDK, so bind it to the current client.
+      setJSON: setJSONdbV2.bind(this),
+      deleteJSON: browserClient.dbV2.deleteJSON.bind(browserClient),
+      setDataLink: browserClient.dbV2.setDataLink.bind(browserClient),
+      getEntryData: browserClient.dbV2.getEntryData.bind(browserClient),
+      setEntryData: browserClient.dbV2.setEntryData.bind(browserClient),
+      deleteEntryData: browserClient.dbV2.deleteEntryData.bind(browserClient),
+      getRawBytes: browserClient.dbV2.getRawBytes.bind(browserClient),
+      revisionNumberCache: browserClient.dbV2.revisionNumberCache,
+    };
+
+    // Registry
+    this.registry = {
+      getEntry: browserClient.registry.getEntry.bind(browserClient),
+      getEntryUrl: browserClient.registry.getEntryUrl.bind(browserClient),
+      // Don't bind the client since this method doesn't take the client.
+      getEntryLink: browserClient.registry.getEntryLink,
+      setEntry: browserClient.registry.setEntry.bind(browserClient),
+      postSignedEntry: browserClient.registry.postSignedEntry.bind(browserClient),
+    };
+  }
+
+  /**
+   * Creates and executes a request.
+   * @param {Object} config - Configuration for the request. See docs for constructor for the full list of options.
+   */
+  executeRequest(config) {
+    let url = config.url;
+    if (!url) {
+      url = makeUrl(config.portalUrl, config.endpointPath, config.extraPath ? config.extraPath : "");
+    }
+
+    // Build headers.
+    const headers = buildRequestHeaders(
+      config.headers,
+      config.customUserAgent,
+      config.customCookie,
+      config.skynetApiKey
+    );
+
+    return axios({
+      url,
+      method: config.method,
+      data: config.data,
+      params: config.params,
+      headers,
+      auth: config.APIKey && { username: "", password: config.APIKey },
+      responseType: config.responseType,
+      onUploadProgress:
+        config.onUploadProgress &&
+        function ({ loaded, total }) {
+          const progress = loaded / total;
+
+          config.onUploadProgress(progress, { loaded, total });
+        },
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+  }
+}
+
+/**
+ * Helper function that builds the request headers.
+ *
+ * @param [baseHeaders] - Any base headers.
+ * @param [customUserAgent] - A custom user agent to set.
+ * @param [customCookie] - A custom cookie.
+ * @param [skynetApiKey] - Authentication key to use for a Skynet portal.
+ * @returns - The built headers.
+ */
+function buildRequestHeaders(baseHeaders, customUserAgent, customCookie, skynetApiKey) {
+  const returnHeaders = { ...baseHeaders };
+  // Set some headers from common options.
+  if (customUserAgent) {
+    returnHeaders["User-Agent"] = customUserAgent;
+  }
+  if (customCookie) {
+    returnHeaders["Cookie"] = customCookie;
+  }
+  if (skynetApiKey) {
+    returnHeaders["Skynet-Api-Key"] = skynetApiKey;
+  }
+  return returnHeaders;
+}
+
+// Export the client.
+
+module.exports = { SkynetClient, buildRequestHeaders };
+
+// Get the following files to run or the client's methods won't be defined.
+__nccwpck_require__(6760);
+__nccwpck_require__(9724);
+__nccwpck_require__(472);
+
+
+/***/ }),
+
+/***/ 5688:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const { sign } = __nccwpck_require__(8729);
+const { toByteArray } = __nccwpck_require__(6463);
+const { MAX_REVISION } = __nccwpck_require__(2528);
+
+const { defaultOptions } = __nccwpck_require__(7964);
+
+BigInt.prototype.toJSON = function () {
+  return this.toString();
+};
+
+/**
+ * The tus chunk size is (4MiB - encryptionOverhead) * dataPieces, set in skyd.
+ */
+const TUS_CHUNK_SIZE = (1 << 22) * 10;
+
+/**
+ * The retry delays, in ms. Data is stored in skyd for up to 20 minutes, so the
+ * total delays should not exceed that length of time.
+ */
+const DEFAULT_TUS_RETRY_DELAYS = [0, 5000, 15000, 60000, 300000, 600000];
+
+const DEFAULT_BASE_OPTIONS = {
+  APIKey: "",
+  skynetApiKey: "",
+  customUserAgent: "",
+  customCookie: "",
+  onDownloadProgress: undefined,
+  onUploadProgress: undefined,
+  loginFn: undefined,
+};
+
+const DEFAULT_DOWNLOAD_OPTIONS = {
+  ...defaultOptions("/"),
+};
+
+const DEFAULT_GET_METADATA_OPTIONS = {
+  ...defaultOptions("/"),
+};
+
+const DEFAULT_UPLOAD_OPTIONS = {
+  ...defaultOptions("/skynet/skyfile"),
+  endpointLargeUpload: "/skynet/tus",
+
+  portalFileFieldname: "file",
+  portalDirectoryFileFieldname: "files[]",
+  customFilename: "",
+  customDirname: "",
+  dryRun: false,
+  errorPages: undefined,
+  largeFileSize: TUS_CHUNK_SIZE,
+  retryDelays: DEFAULT_TUS_RETRY_DELAYS,
+  tryFiles: undefined,
+};
+
+const DEFAULT_GET_ENTRY_OPTIONS = {
+  ...DEFAULT_BASE_OPTIONS,
+  endpointGetEntry: "/skynet/registry",
+};
+
+const DEFAULT_SET_ENTRY_OPTIONS = {
+  ...DEFAULT_BASE_OPTIONS,
+  endpointSetEntry: "/skynet/registry",
+};
+
+/**
+ * The default options for get JSON. Includes the default get entry and download
+ * options.
+ */
+const DEFAULT_GET_JSON_OPTIONS = {
+  ...DEFAULT_BASE_OPTIONS,
+  ...DEFAULT_GET_ENTRY_OPTIONS,
+  ...DEFAULT_DOWNLOAD_OPTIONS,
+  endpointPath: "/skynet/skyfile",
+  cachedDataLink: undefined,
+};
+
+/**
+ * The default options for set JSON. Includes the default upload, get JSON, and
+ * set entry options.
+ */
+const DEFAULT_SET_JSON_OPTIONS = {
+  ...DEFAULT_BASE_OPTIONS,
+  ...DEFAULT_UPLOAD_OPTIONS,
+  ...DEFAULT_GET_JSON_OPTIONS,
+  ...DEFAULT_SET_ENTRY_OPTIONS,
+  endpointPath: "/skynet/skyfile",
+};
+
+/**
+ * URI_SKYNET_PREFIX.
+ */
+const URI_SKYNET_PREFIX = "sia://";
+
+const JSON_RESPONSE_VERSION = 2;
+
+/**
+ * Sets the hidden _data and _v fields on the given raw JSON data.
+ *
+ * @param data - The given JSON data.
+ * @returns - The Skynet JSON data.
+ */
+const buildSkynetJsonObject = function (data) {
+  return { _data: data, _v: JSON_RESPONSE_VERSION };
+};
+
+/**
+ * Get the publicKey from privateKey.
+ *
+ * @param privateKey - The privateKey.
+ * @returns - The publicKey.
+ */
+const getPublicKeyFromPrivateKey = function (privateKey) {
+  const publicKey = Buffer.from(
+    sign.keyPair.fromSecretKey(Uint8Array.from(Buffer.from(privateKey, "hex"))).publicKey
+  ).toString("hex");
+  return publicKey;
+};
+
+/**
+ * The string length of the Skylink after it has been encoded using base64.
+ */
+const BASE64_ENCODED_SKYLINK_SIZE = 46;
+
+/**
+ * The raw size in bytes of the data that gets put into a link.
+ */
+const RAW_SKYLINK_SIZE = 34;
+
+/**
+ * Decodes the skylink encoded using base64 raw URL encoding to bytes.
+ *
+ * @param skylink - The encoded skylink.
+ * @returns - The decoded bytes.
+ */
+function decodeSkylinkBase64(skylink) {
+  // Check if Skylink is 46 bytes long.
+  if (skylink.length !== BASE64_ENCODED_SKYLINK_SIZE) {
+    throw new Error("Skylink is not 46 bytes long.");
+  }
+  // Add padding.
+  skylink = `${skylink}==`;
+  // Convert from URL encoding.
+  skylink = skylink.replace(/-/g, "+").replace(/_/g, "/");
+  return toByteArray(skylink);
+}
+
+/**
+ * Formats the skylink by adding the sia: prefix.
+ *
+ * @param skylink - The skylink.
+ * @returns - The formatted skylink.
+ */
+function formatSkylink(skylink) {
+  //validateString("skylink", skylink, "parameter");
+  if (typeof skylink !== "string") {
+    throw new Error("skylink is not a sting.");
+  }
+
+  if (skylink === "") {
+    return skylink;
+  }
+  if (!skylink.startsWith(URI_SKYNET_PREFIX)) {
+    skylink = `${URI_SKYNET_PREFIX}${skylink}`;
+  }
+  return skylink;
+}
+
+module.exports = {
+  MAX_REVISION,
+  DEFAULT_BASE_OPTIONS,
+  DEFAULT_DOWNLOAD_OPTIONS,
+  DEFAULT_GET_METADATA_OPTIONS,
+  DEFAULT_UPLOAD_OPTIONS,
+  DEFAULT_GET_ENTRY_OPTIONS,
+  DEFAULT_SET_ENTRY_OPTIONS,
+  DEFAULT_GET_JSON_OPTIONS,
+  DEFAULT_SET_JSON_OPTIONS,
+  URI_SKYNET_PREFIX,
+  JSON_RESPONSE_VERSION,
+  buildSkynetJsonObject,
+  getPublicKeyFromPrivateKey,
+  BASE64_ENCODED_SKYLINK_SIZE,
+  RAW_SKYLINK_SIZE,
+  decodeSkylinkBase64,
+  formatSkylink,
+  TUS_CHUNK_SIZE,
+};
+
+
+/***/ }),
+
+/***/ 6760:
+/***/ ((__unused_webpack_module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+/* eslint-disable no-unused-vars */
+
+
+
+const fs = __nccwpck_require__(7147);
+
+const { trimSiaPrefix } = __nccwpck_require__(7964);
+const { SkynetClient } = __nccwpck_require__(6360);
+const { DEFAULT_DOWNLOAD_OPTIONS } = __nccwpck_require__(5688);
+
+/**
+ * Downloads in-memory data from a skylink.
+ *
+ * @param {string} skylink - The skylink.
+ * @param {Object} [customOptions={}] - Configuration options.
+ * @returns - The data.
+ */
+SkynetClient.prototype.downloadData = async function (skylink, customOptions = {}) {
+  const opts = { ...DEFAULT_DOWNLOAD_OPTIONS, ...this.customOptions, ...customOptions };
+
+  skylink = trimSiaPrefix(skylink);
+
+  const response = await this.executeRequest({
+    ...opts,
+    method: "get",
+    extraPath: skylink,
+    responseType: "arraybuffer",
+  });
+  return response.data;
+};
+
+SkynetClient.prototype.downloadFile = function (path, skylink, customOptions = {}) {
+  const opts = { ...DEFAULT_DOWNLOAD_OPTIONS, ...this.customOptions, ...customOptions };
+
+  skylink = trimSiaPrefix(skylink);
+
+  const writer = fs.createWriteStream(path);
+
+  return new Promise((resolve, reject) => {
+    this.executeRequest({
+      ...opts,
+      method: "get",
+      extraPath: skylink,
+      responseType: "stream",
+    })
+      .then((response) => {
+        response.data.pipe(writer);
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+};
+
+
+/***/ }),
+
+/***/ 9724:
+/***/ ((__unused_webpack_module, __unused_webpack_exports, __nccwpck_require__) => {
+
+/* eslint-disable no-unused-vars */
+
+const { defaultOptions } = __nccwpck_require__(7964);
+const { SkynetClient } = __nccwpck_require__(6360);
+
+const defaultAddSkykeyOptions = {
+  ...defaultOptions("/skynet/addskykey"),
+};
+
+const defaultCreateSkykeyOptions = {
+  ...defaultOptions("/skynet/createskykey"),
+};
+
+const defaultGetSkykeyOptions = {
+  ...defaultOptions("/skynet/skykey"),
+};
+
+const defaultGetSkykeysOptions = {
+  ...defaultOptions("/skynet/skykeys"),
+};
+
+SkynetClient.prototype.addSkykey = function (skykey, customOptions = {}) {
+  const opts = { ...defaultAddSkykeyOptions, ...this.customOptions, ...customOptions };
+
+  throw new Error("Unimplemented");
+};
+
+SkynetClient.prototype.createSkykey = function (skykeyName, skykeyType, customOptions = {}) {
+  const opts = { ...defaultCreateSkykeyOptions, ...this.customOptions, ...customOptions };
+
+  throw new Error("Unimplemented");
+};
+
+SkynetClient.prototype.getSkykeyById = function (skykeyId, customOptions = {}) {
+  const opts = { ...defaultGetSkykeyOptions, ...this.customOptions, ...customOptions };
+
+  throw new Error("Unimplemented");
+};
+
+SkynetClient.prototype.getSkykeyByName = function (skykeyName, customOptions = {}) {
+  const opts = { ...defaultGetSkykeyOptions, ...this.customOptions, ...customOptions };
+
+  throw new Error("Unimplemented");
+};
+
+SkynetClient.prototype.getSkykeys = function (customOptions = {}) {
+  const opts = { ...defaultGetSkykeysOptions, ...this.customOptions, ...customOptions };
+
+  throw new Error("Unimplemented");
+};
+
+
+/***/ }),
+
+/***/ 3073:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const {
+  MAX_REVISION,
+  DEFAULT_GET_ENTRY_OPTIONS,
+  DEFAULT_SET_ENTRY_OPTIONS,
+  DEFAULT_GET_JSON_OPTIONS,
+  DEFAULT_SET_JSON_OPTIONS,
+  DEFAULT_UPLOAD_OPTIONS,
+  buildSkynetJsonObject,
+  getPublicKeyFromPrivateKey,
+  RAW_SKYLINK_SIZE,
+  decodeSkylinkBase64,
+  formatSkylink,
+  URI_SKYNET_PREFIX,
+} = __nccwpck_require__(5688);
+const { extractOptions, trimPrefix } = __nccwpck_require__(7964);
+
+/**
+ * Sets a JSON object at the registry entry corresponding to the privateKey and dataKey using SkyDB V1.
+ *
+ * @param privateKey - The user private key.
+ * @param dataKey - The key of the data to fetch for the given user.
+ * @param json - The JSON data to set.
+ * @param [customOptions] - Additional settings that can optionally be set.
+ * @returns - The returned JSON and corresponding data link.
+ * @throws - Will throw if the input keys are not valid strings.
+ * @deprecated - Use of this method may result in data race bugs. Reworking your application to use `client.dbV2.setJSON` is recommended.
+ */
+const setJSONdbV1 = async function (privateKey, dataKey, json, customOptions = {}) {
+  const opts = { ...DEFAULT_SET_JSON_OPTIONS, ...this.customOptions, ...customOptions };
+
+  const publicKey = getPublicKeyFromPrivateKey(privateKey);
+  const { entry, dataLink } = await getOrCreateRegistryEntry(this, publicKey, dataKey, json, opts);
+
+  // Update the registry.
+  const setEntryOpts = extractOptions(opts, DEFAULT_SET_ENTRY_OPTIONS);
+  await this.registry.setEntry(privateKey, entry, setEntryOpts);
+
+  return { data: json, dataLink: formatSkylink(dataLink) };
+};
+
+/**
+ * Gets the registry entry and data link or creates the entry if it doesn't exist.
+ *
+ * @param client - The Skynet client.
+ * @param publicKey - The user public key.
+ * @param dataKey - The dat akey.
+ * @param json - The JSON to set.
+ * @param [customOptions] - Additional settings that can optionally be set.
+ * @returns - The registry entry and corresponding data link.
+ * @throws - Will throw if the revision is already the maximum value.
+ */
+const getOrCreateRegistryEntry = async function (client, publicKey, dataKey, json, customOptions = {}) {
+  const opts = { ...DEFAULT_GET_JSON_OPTIONS, ...client.customOptions, ...customOptions };
+
+  // Set the hidden _data and _v fields.
+  const skynetJson = await buildSkynetJsonObject(json);
+  const fullData = JSON.stringify(skynetJson);
+
+  // uploads in-memory data to skynet
+  const uploadOpts = extractOptions(opts, DEFAULT_UPLOAD_OPTIONS);
+  const skylink = await client.uploadData(fullData, dataKey, uploadOpts);
+
+  // Fetch the current value to find out the revision.
+  const getEntryOpts = extractOptions(opts, DEFAULT_GET_ENTRY_OPTIONS);
+  const signedEntry = await client.registry.getEntry(publicKey, dataKey, getEntryOpts);
+
+  const revision = getNextRevisionFromEntry(signedEntry.entry);
+
+  // Build the registry entry.
+  const dataLink = trimPrefix(skylink, URI_SKYNET_PREFIX);
+  const rawDataLink = decodeSkylinkBase64(dataLink);
+  if (rawDataLink.length !== RAW_SKYLINK_SIZE) {
+    throw new Error("rawDataLink is not 34 bytes long.");
+  }
+
+  const entry = {
+    dataKey,
+    data: rawDataLink,
+    revision,
+  };
+
+  return { entry: entry, dataLink: formatSkylink(skylink) };
+};
+
+/**
+ * Gets the next revision from a returned entry (or 0 if the entry was not found).
+ *
+ * @param entry - The returned registry entry.
+ * @returns - The revision.
+ * @throws - Will throw if the next revision would be beyond the maximum allowed value.
+ */
+const getNextRevisionFromEntry = function (entry) {
+  let revision;
+  if (entry === null || entry === undefined) {
+    revision = BigInt(0);
+  } else {
+    revision = entry.revision + BigInt(1);
+  }
+  // Throw if the revision is already the maximum value.
+  if (revision > MAX_REVISION) {
+    throw new Error("Current entry already has maximum allowed revision, could not update the entry");
+  }
+  return revision;
+};
+
+module.exports = { setJSONdbV1 };
+
+
+/***/ }),
+
+/***/ 2666:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const {
+  MAX_REVISION,
+  DEFAULT_SET_ENTRY_OPTIONS,
+  DEFAULT_GET_JSON_OPTIONS,
+  DEFAULT_SET_JSON_OPTIONS,
+  DEFAULT_UPLOAD_OPTIONS,
+  buildSkynetJsonObject,
+  getPublicKeyFromPrivateKey,
+  RAW_SKYLINK_SIZE,
+  decodeSkylinkBase64,
+  formatSkylink,
+  URI_SKYNET_PREFIX,
+} = __nccwpck_require__(5688);
+const { extractOptions, trimPrefix } = __nccwpck_require__(7964);
+
+/**
+ * Sets a JSON object at the registry entry corresponding to the privateKey and dataKey using SkyDB V2.
+ *
+ * This will use the entry revision number from the cache, so getJSON must
+ * always be called first for existing entries.
+ *
+ * @param privateKey - The user private key.
+ * @param dataKey - The key of the data to fetch for the given user.
+ * @param json - The JSON data to set.
+ * @param [customOptions] - Additional settings that can optionally be set.
+ * @returns - The returned JSON and corresponding data link.
+ * @throws - Will throw if the input keys are not valid strings.
+ */
+const setJSONdbV2 = async function (privateKey, dataKey, json, customOptions = {}) {
+  const opts = { ...DEFAULT_SET_JSON_OPTIONS, ...this.customOptions, ...customOptions };
+
+  const publicKey = getPublicKeyFromPrivateKey(privateKey);
+
+  // Immediately fail if the mutex is not available.
+  return await this.dbV2.revisionNumberCache.withCachedEntryLock(publicKey, dataKey, async (cachedRevisionEntry) => {
+    // Get the cached revision number before doing anything else. Increment it.
+    const newRevision = await incrementRevision(cachedRevisionEntry.revision);
+
+    const { entry, dataLink } = await getOrCreateSkyDBRegistryEntry(this, dataKey, json, newRevision, opts);
+
+    // Update the registry.
+    const setEntryOpts = extractOptions(opts, DEFAULT_SET_ENTRY_OPTIONS);
+    await this.registry.setEntry(privateKey, entry, setEntryOpts);
+
+    // Update the cached revision number.
+    cachedRevisionEntry.revision = newRevision;
+
+    return { data: json, dataLink: formatSkylink(dataLink) };
+  });
+};
+
+/**
+ * Gets the registry entry and data link or creates the entry if it doesn't
+ * exist. Uses the cached revision number for the entry, or 0 if the entry has
+ * not been cached.
+ *
+ * @param client - The Skynet client.
+ * @param dataKey - The data key.
+ * @param data - The JSON or raw byte data to set.
+ * @param revision - The revision number to set.
+ * @param [customOptions] - Additional settings that can optionally be set.
+ * @returns - The registry entry and corresponding data link.
+ * @throws - Will throw if the revision is already the maximum value.
+ */
+const getOrCreateSkyDBRegistryEntry = async function (client, dataKey, json, newRevision, customOptions = {}) {
+  const opts = { ...DEFAULT_GET_JSON_OPTIONS, ...client.customOptions, ...customOptions };
+
+  // Set the hidden _data and _v fields.
+  const skynetJson = await buildSkynetJsonObject(json);
+  const fullData = JSON.stringify(skynetJson);
+
+  // uploads in-memory data to skynet
+  const uploadOpts = extractOptions(opts, DEFAULT_UPLOAD_OPTIONS);
+  const skylink = await client.uploadData(fullData, dataKey, uploadOpts);
+
+  // Build the registry entry.
+  const revision = newRevision;
+  const dataLink = trimPrefix(skylink, URI_SKYNET_PREFIX);
+  const rawDataLink = decodeSkylinkBase64(dataLink);
+  if (rawDataLink.length !== RAW_SKYLINK_SIZE) {
+    throw new Error("rawDataLink is not 34 bytes long.");
+  }
+
+  const entry = {
+    dataKey,
+    data: rawDataLink,
+    revision,
+  };
+
+  return { entry: entry, dataLink: formatSkylink(skylink) };
+};
+
+/**
+ * Increments the given revision number and checks to make sure it is not
+ * greater than the maximum revision.
+ *
+ * @param revision - The given revision number.
+ * @returns - The incremented revision number.
+ * @throws - Will throw if the incremented revision number is greater than the maximum revision.
+ */
+const incrementRevision = function (revision) {
+  revision = revision + BigInt(1);
+  // Throw if the revision is already the maximum value.
+  if (revision > MAX_REVISION) {
+    throw new Error("Current entry already has maximum allowed revision, could not update the entry");
+  }
+  return revision;
+};
+
+module.exports = { setJSONdbV2 };
+
+
+/***/ }),
+
+/***/ 472:
+/***/ ((__unused_webpack_module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const FormData = __nccwpck_require__(4334);
+const fs = __nccwpck_require__(7147);
+const p = __nccwpck_require__(1017);
+
+const { Upload } = __nccwpck_require__(4107);
+
+const { buildRequestHeaders, SkynetClient } = __nccwpck_require__(6360);
+const { DEFAULT_UPLOAD_OPTIONS, TUS_CHUNK_SIZE } = __nccwpck_require__(5688);
+const { getFileMimeType, makeUrl, walkDirectory, uriSkynetPrefix } = __nccwpck_require__(7964);
+
+/**
+ * Uploads in-memory data to Skynet.
+ *
+ * @param {string|Buffer} data - The data to upload, either a string or raw bytes.
+ * @param {string} filename - The filename to use on Skynet.
+ * @param {Object} [customOptions={}] - Configuration options.
+ * @returns - The skylink.
+ */
+SkynetClient.prototype.uploadData = async function (data, filename, customOptions = {}) {
+  const opts = { ...DEFAULT_UPLOAD_OPTIONS, ...this.customOptions, ...customOptions };
+
+  const sizeInBytes = data.length;
+
+  if (sizeInBytes < opts.largeFileSize) {
+    return await uploadSmallFile(this, data, filename, opts);
+  }
+  return await uploadLargeFile(this, data, filename, sizeInBytes, opts);
+};
+
+SkynetClient.prototype.uploadFile = async function (path, customOptions = {}) {
+  const opts = { ...DEFAULT_UPLOAD_OPTIONS, ...this.customOptions, ...customOptions };
+
+  const stat = await fs.promises.stat(path);
+  const sizeInBytes = stat.size;
+  const filename = opts.customFilename ? opts.customFilename : p.basename(path);
+  const stream = fs.createReadStream(path);
+
+  if (sizeInBytes < opts.largeFileSize) {
+    return await uploadSmallFile(this, stream, filename, opts);
+  }
+  return await uploadLargeFile(this, stream, filename, sizeInBytes, opts);
+};
+
+async function uploadSmallFile(client, stream, filename, opts) {
+  const params = {};
+  if (opts.dryRun) params.dryrun = true;
+
+  const formData = new FormData();
+  formData.append(opts.portalFileFieldname, stream, filename);
+  const headers = formData.getHeaders();
+
+  const response = await client.executeRequest({
+    ...opts,
+    method: "post",
+    data: formData,
+    headers,
+    params,
+  });
+
+  const skylink = response.data.skylink;
+  return `${uriSkynetPrefix}${skylink}`;
+}
+
+async function uploadLargeFile(client, stream, filename, filesize, opts) {
+  const url = makeUrl(opts.portalUrl, opts.endpointLargeUpload);
+
+  // Build headers.
+  const headers = buildRequestHeaders({}, opts.customUserAgent, opts.customCookie);
+
+  return new Promise((resolve, reject) => {
+    const tusOpts = {
+      endpoint: url,
+      chunkSize: TUS_CHUNK_SIZE,
+      retryDelays: opts.retryDelays,
+      metadata: {
+        filename,
+        filetype: getFileMimeType(filename),
+      },
+      uploadSize: filesize,
+      headers,
+      onError: (error) => {
+        // Return error body rather than entire error.
+        const res = error.originalResponse;
+        const newError = res ? new Error(res.getBody().trim()) || error : error;
+        reject(newError);
+      },
+      onSuccess: async () => {
+        if (!upload.url) {
+          reject(new Error("'upload.url' was not set"));
+          return;
+        }
+
+        // Call HEAD to get the metadata, including the skylink.
+        const resp = await client.executeRequest({
+          ...opts,
+          url: upload.url,
+          endpointPath: opts.endpointLargeUpload,
+          method: "head",
+          headers: { ...headers, "Tus-Resumable": "1.0.0" },
+        });
+        const skylink = resp.headers["skynet-skylink"];
+        resolve(`${uriSkynetPrefix}${skylink}`);
+      },
+    };
+
+    const upload = new Upload(stream, tusOpts);
+    upload.start();
+  });
+}
+
+SkynetClient.prototype.uploadDirectory = async function (path, customOptions = {}) {
+  const opts = { ...DEFAULT_UPLOAD_OPTIONS, ...this.customOptions, ...customOptions };
+
+  // Check if there is a directory at given path.
+  const stat = await fs.promises.stat(path);
+  if (!stat.isDirectory()) {
+    throw new Error(`Given path is not a directory: ${path}`);
+  }
+
+  const formData = new FormData();
+  path = p.resolve(path);
+  let basepath = path;
+  // Ensure the basepath ends in a slash.
+  if (!basepath.endsWith("/")) {
+    basepath += "/";
+    // Normalize the slash on non-Unix filesystems.
+    basepath = p.normalize(basepath);
+  }
+
+  for (const file of walkDirectory(path)) {
+    // Remove the dir path from the start of the filename if it exists.
+    let filename = file;
+    if (file.startsWith(basepath)) {
+      filename = file.replace(basepath, "");
+    }
+    formData.append(opts.portalDirectoryFileFieldname, fs.createReadStream(file), { filepath: filename });
+  }
+
+  // Use either the custom dirname, or the last portion of the path.
+  let filename = opts.customDirname || p.basename(path);
+  if (filename.startsWith("/")) {
+    filename = filename.slice(1);
+  }
+  const params = { filename };
+  if (opts.tryFiles) {
+    params.tryfiles = JSON.stringify(opts.tryFiles);
+  }
+  if (opts.errorPages) {
+    params.errorpages = JSON.stringify(opts.errorPages);
+  }
+
+  if (opts.dryRun) params.dryrun = true;
+
+  const response = await this.executeRequest({
+    ...opts,
+    method: "post",
+    data: formData,
+    headers: formData.getHeaders(),
+    params,
+  });
+
+  return `${uriSkynetPrefix}${response.data.skylink}`;
+};
+
+
+/***/ }),
+
+/***/ 7964:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const path = __nccwpck_require__(1017);
+const fs = __nccwpck_require__(7147);
+
+const mime = __nccwpck_require__(531);
+const urljoin = __nccwpck_require__(2821);
+
+/**
+ * The default URL of the Skynet portal to use in the absence of configuration.
+ */
+const defaultSkynetPortalUrl = "https://siasky.net";
+
+/**
+ * The URI prefix for Skynet.
+ */
+const uriSkynetPrefix = "sia://";
+
+function defaultOptions(endpointPath) {
+  return {
+    portalUrl: defaultPortalUrl(),
+    endpointPath: endpointPath,
+
+    APIKey: "",
+    skynetApiKey: "",
+    customUserAgent: "",
+  };
+}
+
+/**
+ * Selects the default portal URL to use when initializing a client. May involve network queries to several candidate portals.
+ */
+function defaultPortalUrl() {
+  return defaultSkynetPortalUrl;
+}
+
+/**
+ * Extract only the model's custom options from the given options.
+ *
+ * @param opts - The given options.
+ * @param model - The model options.
+ * @returns - The extracted custom options.
+ * @throws - If the given opts don't contain all properties of the model.
+ */
+function extractOptions(opts, model) {
+  const result = {};
+  for (const property in model) {
+    /* istanbul ignore next */
+    if (!Object.prototype.hasOwnProperty.call(model, property)) {
+      continue;
+    }
+    // Throw if the given options don't contain the model's property.
+    if (!Object.prototype.hasOwnProperty.call(opts, property)) {
+      throw new Error(`Property '${property}' not found`);
+    }
+    result[property] = opts[property];
+  }
+
+  return result;
+}
+
+/**
+ * Get the file mime type. Try to guess the file type based on the extension.
+ *
+ * @param filename - The filename.
+ * @returns - The mime type.
+ */
+function getFileMimeType(filename) {
+  let ext = path.extname(filename);
+  ext = trimPrefix(ext, ".");
+  if (ext !== "") {
+    const mimeType = mime.getType(ext);
+    if (mimeType) {
+      return mimeType;
+    }
+  }
+  return "";
+}
+
+/**
+ * Properly joins paths together to create a URL. Takes a variable number of
+ * arguments.
+ */
+function makeUrl() {
+  let args = Array.from(arguments);
+  return args.reduce(function (acc, cur) {
+    return urljoin(acc, cur);
+  });
+}
+
+/**
+ * Removes a prefix from the beginning of the string.
+ *
+ * @param str - The string to process.
+ * @param prefix - The prefix to remove.
+ * @param [limit] - Maximum amount of times to trim. No limit by default.
+ * @returns - The processed string.
+ */
+function trimPrefix(str, prefix, limit) {
+  if (typeof limit !== "number" && typeof limit !== "undefined") {
+    throw new Error(`Invalid input: 'limit' must be type 'number | undefined', was '${typeof limit}'`);
+  }
+
+  while (str.startsWith(prefix)) {
+    if (limit !== undefined && limit <= 0) {
+      break;
+    }
+    str = str.slice(prefix.length);
+    if (limit) {
+      limit -= 1;
+    }
+  }
+  return str;
+}
+
+function walkDirectory(filepath, out) {
+  let files = [];
+  if (!fs.existsSync(filepath)) {
+    return files;
+  }
+
+  for (const subpath of fs.readdirSync(filepath)) {
+    const fullpath = path.join(filepath, subpath);
+    if (fs.statSync(fullpath).isDirectory()) {
+      files = files.concat(walkDirectory(fullpath, out));
+      continue;
+    }
+    files.push(fullpath);
+  }
+  return files;
+}
+
+function trimSiaPrefix(str) {
+  return trimPrefix(str, uriSkynetPrefix);
+}
+
+module.exports = {
+  defaultOptions,
+  defaultPortalUrl,
+  defaultSkynetPortalUrl,
+  extractOptions,
+  getFileMimeType,
+  makeUrl,
+  trimSiaPrefix,
+  trimPrefix,
+  uriSkynetPrefix,
+  walkDirectory,
+};
+
+
+/***/ }),
+
+/***/ 6586:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -4232,6 +5360,22 @@ function _typeof(obj) {
   }
 
   return _typeof(obj);
+}
+
+function _defineProperties(target, props) {
+  for (var i = 0; i < props.length; i++) {
+    var descriptor = props[i];
+    descriptor.enumerable = descriptor.enumerable || false;
+    descriptor.configurable = true;
+    if ("value" in descriptor) descriptor.writable = true;
+    Object.defineProperty(target, descriptor.key, descriptor);
+  }
+}
+
+function _createClass(Constructor, protoProps, staticProps) {
+  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
+  if (staticProps) _defineProperties(Constructor, staticProps);
+  return Constructor;
 }
 
 function _classCallCheck(instance, Constructor) {
@@ -4410,7 +5554,7 @@ var DetailedError = /*#__PURE__*/function (_Error) {
     return _this;
   }
 
-  return DetailedError;
+  return _createClass(DetailedError);
 }( /*#__PURE__*/_wrapNativeSuper(Error));
 
 var _default = DetailedError;
@@ -4418,7 +5562,7 @@ exports["default"] = _default;
 
 /***/ }),
 
-/***/ 7180:
+/***/ 1665:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -4444,7 +5588,7 @@ function log(msg) {
 
 /***/ }),
 
-/***/ 3716:
+/***/ 765:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -4459,11 +5603,11 @@ var _fs = __nccwpck_require__(7147);
 
 var _isStream = _interopRequireDefault(__nccwpck_require__(1554));
 
-var _BufferSource = _interopRequireDefault(__nccwpck_require__(4958));
+var _BufferSource = _interopRequireDefault(__nccwpck_require__(6729));
 
-var _FileSource = _interopRequireDefault(__nccwpck_require__(1197));
+var _FileSource = _interopRequireDefault(__nccwpck_require__(6740));
 
-var _StreamSource = _interopRequireDefault(__nccwpck_require__(1553));
+var _StreamSource = _interopRequireDefault(__nccwpck_require__(8267));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -4520,7 +5664,7 @@ exports["default"] = FileReader;
 
 /***/ }),
 
-/***/ 8408:
+/***/ 1419:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -4580,7 +5724,7 @@ function fingerprint(file, options) {
 
 /***/ }),
 
-/***/ 9117:
+/***/ 7186:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -4971,7 +6115,7 @@ var ProgressEmitter = /*#__PURE__*/function (_Transform) {
 
 /***/ }),
 
-/***/ 4560:
+/***/ 4107:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -4980,10 +6124,10 @@ var ProgressEmitter = /*#__PURE__*/function (_Transform) {
 Object.defineProperty(exports, "__esModule", ({
   value: true
 }));
-Object.defineProperty(exports, "enableDebugLog", ({
+Object.defineProperty(exports, "DetailedError", ({
   enumerable: true,
   get: function () {
-    return _logger.enableDebugLog;
+    return _error.default;
   }
 }));
 Object.defineProperty(exports, "FileUrlStorage", ({
@@ -4992,33 +6136,43 @@ Object.defineProperty(exports, "FileUrlStorage", ({
     return _urlStorage.FileUrlStorage;
   }
 }));
-Object.defineProperty(exports, "canStoreURLs", ({
-  enumerable: true,
-  get: function () {
-    return _urlStorage.canStoreURLs;
-  }
-}));
 Object.defineProperty(exports, "HttpStack", ({
   enumerable: true,
   get: function () {
     return _httpStack.default;
   }
 }));
-exports.isSupported = exports.defaultOptions = exports.Upload = void 0;
+exports.Upload = void 0;
+Object.defineProperty(exports, "canStoreURLs", ({
+  enumerable: true,
+  get: function () {
+    return _urlStorage.canStoreURLs;
+  }
+}));
+exports.defaultOptions = void 0;
+Object.defineProperty(exports, "enableDebugLog", ({
+  enumerable: true,
+  get: function () {
+    return _logger.enableDebugLog;
+  }
+}));
+exports.isSupported = void 0;
 
-var _upload = _interopRequireDefault(__nccwpck_require__(1857));
+var _upload = _interopRequireDefault(__nccwpck_require__(1993));
 
-var _noopUrlStorage = _interopRequireDefault(__nccwpck_require__(8824));
+var _noopUrlStorage = _interopRequireDefault(__nccwpck_require__(6070));
 
-var _logger = __nccwpck_require__(7180);
+var _logger = __nccwpck_require__(1665);
 
-var _urlStorage = __nccwpck_require__(4851);
+var _error = _interopRequireDefault(__nccwpck_require__(6586));
 
-var _httpStack = _interopRequireDefault(__nccwpck_require__(9117));
+var _urlStorage = __nccwpck_require__(8597);
 
-var _fileReader = _interopRequireDefault(__nccwpck_require__(3716));
+var _httpStack = _interopRequireDefault(__nccwpck_require__(7186));
 
-var _fingerprint = _interopRequireDefault(__nccwpck_require__(8408));
+var _fileReader = _interopRequireDefault(__nccwpck_require__(765));
+
+var _fingerprint = _interopRequireDefault(__nccwpck_require__(1419));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -5234,7 +6388,7 @@ exports.isSupported = isSupported;
 
 /***/ }),
 
-/***/ 4958:
+/***/ 6729:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -5297,7 +6451,7 @@ exports["default"] = BufferSource;
 
 /***/ }),
 
-/***/ 1197:
+/***/ 6740:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -5372,7 +6526,7 @@ exports["default"] = FileSource;
 
 /***/ }),
 
-/***/ 7111:
+/***/ 678:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -5576,7 +6730,7 @@ exports["default"] = SlicingStream;
 
 /***/ }),
 
-/***/ 1553:
+/***/ 8267:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -5587,7 +6741,7 @@ Object.defineProperty(exports, "__esModule", ({
 }));
 exports["default"] = void 0;
 
-var _SlicingStream = _interopRequireDefault(__nccwpck_require__(7111));
+var _SlicingStream = _interopRequireDefault(__nccwpck_require__(678));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -5696,7 +6850,7 @@ exports["default"] = StreamSource;
 
 /***/ }),
 
-/***/ 4851:
+/***/ 8597:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -5705,7 +6859,7 @@ exports["default"] = StreamSource;
 Object.defineProperty(exports, "__esModule", ({
   value: true
 }));
-exports.FileUrlStorage = exports.canStoreURLs = void 0;
+exports.canStoreURLs = exports.FileUrlStorage = void 0;
 
 var _fs = __nccwpck_require__(7147);
 
@@ -5935,7 +7089,7 @@ exports.FileUrlStorage = FileUrlStorage;
 
 /***/ }),
 
-/***/ 8824:
+/***/ 6070:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -6004,7 +7158,7 @@ exports["default"] = NoopUrlStorage;
 
 /***/ }),
 
-/***/ 1857:
+/***/ 1993:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -6019,11 +7173,11 @@ var _jsBase = __nccwpck_require__(4139);
 
 var _urlParse = _interopRequireDefault(__nccwpck_require__(5682));
 
-var _error = _interopRequireDefault(__nccwpck_require__(831));
+var _error = _interopRequireDefault(__nccwpck_require__(6586));
 
-var _logger = __nccwpck_require__(7180);
+var _logger = __nccwpck_require__(1665);
 
-var _uuid = _interopRequireDefault(__nccwpck_require__(7209));
+var _uuid = _interopRequireDefault(__nccwpck_require__(1858));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -6076,6 +7230,64 @@ function _defineProperty(obj, key, value) {
   return obj;
 }
 
+function _slicedToArray(arr, i) {
+  return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest();
+}
+
+function _nonIterableRest() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+
+function _unsupportedIterableToArray(o, minLen) {
+  if (!o) return;
+  if (typeof o === "string") return _arrayLikeToArray(o, minLen);
+  var n = Object.prototype.toString.call(o).slice(8, -1);
+  if (n === "Object" && o.constructor) n = o.constructor.name;
+  if (n === "Map" || n === "Set") return Array.from(o);
+  if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen);
+}
+
+function _arrayLikeToArray(arr, len) {
+  if (len == null || len > arr.length) len = arr.length;
+
+  for (var i = 0, arr2 = new Array(len); i < len; i++) {
+    arr2[i] = arr[i];
+  }
+
+  return arr2;
+}
+
+function _iterableToArrayLimit(arr, i) {
+  if (typeof Symbol === "undefined" || !(Symbol.iterator in Object(arr))) return;
+  var _arr = [];
+  var _n = true;
+  var _d = false;
+  var _e = undefined;
+
+  try {
+    for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+      _arr.push(_s.value);
+
+      if (i && _arr.length === i) break;
+    }
+  } catch (err) {
+    _d = true;
+    _e = err;
+  } finally {
+    try {
+      if (!_n && _i["return"] != null) _i["return"]();
+    } finally {
+      if (_d) throw _e;
+    }
+  }
+
+  return _arr;
+}
+
+function _arrayWithHoles(arr) {
+  if (Array.isArray(arr)) return arr;
+}
+
 function _classCallCheck(instance, Constructor) {
   if (!(instance instanceof Constructor)) {
     throw new TypeError("Cannot call a class as a function");
@@ -6120,6 +7332,10 @@ var defaultOptions = {
   chunkSize: Infinity,
   retryDelays: [0, 1000, 3000, 5000],
   parallelUploads: 1,
+  splitSizeIntoParts: null,
+  // If set, wait for one partial parallel upload chunk to reach this percentage
+  // before resuming the next partial upload.
+  staggerPercent: null,
   storeFingerprintForResuming: true,
   removeFingerprintOnSuccess: false,
   uploadLengthDeferred: false,
@@ -6172,10 +7388,19 @@ var BaseUpload = /*#__PURE__*/function () {
     this._offsetBeforeRetry = 0; // An array of BaseUpload instances which are used for uploading the different
     // parts, if the parallelUploads option is used.
 
-    this._parallelUploads = null; // An array of upload URLs which are used for uploading the different
+    this._parallelUploads = null; // A custom function for splitting the upload size into parts, if the
+    // parallelUploads option is used.
+
+    this._splitSizeIntoParts = null; // An array of upload URLs which are used for uploading the different
     // parts, if the parallelUploads option is used.
 
-    this._parallelUploadUrls = null;
+    this._parallelUploadUrls = null; // If a partial upload, the current chunk object that this partial upload is
+    // uploading.
+
+    this._currentChunk = null; // Whether this is an initial upload, or subtasks initiated in
+    // _startParallelUpload.
+
+    this._initialUpload = true;
   }
   /**
    * Use the Termination extension to delete an upload from the server by sending a DELETE
@@ -6241,6 +7466,18 @@ var BaseUpload = /*#__PURE__*/function () {
         });
       }
 
+      if (this.options.staggerPercent !== null) {
+        if (this._initialUpload && this.options.parallelUploads <= 1) {
+          this._emitError(new Error("tus: cannot use the staggerPercent option when parallelUploads is disabled"));
+        }
+      }
+
+      if (this.options.splitSizeIntoParts !== null) {
+        if (this.options.parallelUploads <= 1) {
+          this._emitError(new Error("tus: cannot use the splitSizeIntoParts option when parallelUploads is disabled"));
+        }
+      }
+
       this.options.fingerprint(file, this.options).then(function (fingerprint) {
         if (fingerprint == null) {
           (0, _logger.log)('No fingerprint was calculated meaning that the upload cannot be stored in the URL storage.');
@@ -6278,18 +7515,42 @@ var BaseUpload = /*#__PURE__*/function () {
   }, {
     key: "_startParallelUpload",
     value: function _startParallelUpload() {
-      var _this3 = this;
+      var _this$options$splitSi,
+          _this3 = this;
 
       var totalSize = this._size = this._source.size;
       var totalProgress = 0;
+      var _this$options = this.options,
+          chunkSize = _this$options.chunkSize,
+          staggerPercent = _this$options.staggerPercent;
       this._parallelUploads = [];
       var partCount = this._parallelUploadUrls != null ? this._parallelUploadUrls.length : this.options.parallelUploads; // The input file will be split into multiple slices which are uploaded in separate
       // requests. Here we generate the start and end position for the slices.
 
-      var parts = splitSizeIntoParts(this._source.size, partCount, this._parallelUploadUrls); // Create an empty list for storing the upload URLs
+      var splitSizeFn = (_this$options$splitSi = this.options.splitSizeIntoParts) !== null && _this$options$splitSi !== void 0 ? _this$options$splitSi : splitSizeIntoParts;
+      var parts = splitSizeFn(this._source.size, partCount); // Attach URLs from previous uploads, if available.
 
-      this._parallelUploadUrls = new Array(parts.length); // Generate a promise for each slice that will be resolve if the respective
-      // upload is completed.
+      if (this._parallelUploadUrls) {
+        parts.forEach(function (part, index) {
+          part.uploadUrl = _this3._parallelUploadUrls[index] || null;
+        });
+      } // Create an empty list for storing the upload URLs
+
+
+      this._parallelUploadUrls = new Array(parts.length);
+      var firstChunk = null;
+      var partsChunks = null;
+
+      if (staggerPercent !== null) {
+        // Generate a promise for each chunk that will be resolved when the respective
+        // upload is completed.
+        var _buildChunkStaggers = buildChunkStaggers(totalSize, parts.length, chunkSize);
+
+        var _buildChunkStaggers2 = _slicedToArray(_buildChunkStaggers, 2);
+
+        partsChunks = _buildChunkStaggers2[0];
+        firstChunk = _buildChunkStaggers2[1];
+      }
 
       var uploads = parts.map(function (part, index) {
         var lastPartProgress = 0;
@@ -6306,6 +7567,9 @@ var BaseUpload = /*#__PURE__*/function () {
               removeFingerprintOnSuccess: false,
               // Reset the parallelUploads option to not cause recursion.
               parallelUploads: 1,
+              // Reset parallel upload options. Keep the stagger option.
+              splitSizeIntoParts: null,
+              // Reset metadata.
               metadata: {},
               // Add the header to indicate the this is a partial upload.
               headers: _objectSpread(_objectSpread({}, _this3.options.headers), {}, {
@@ -6314,14 +7578,6 @@ var BaseUpload = /*#__PURE__*/function () {
               // Reject or resolve the promise if the upload errors or completes.
               onSuccess: resolve,
               onError: reject,
-              // Based in the progress for this partial upload, calculate the progress
-              // for the entire final upload.
-              onProgress: function onProgress(newPartProgress) {
-                totalProgress = totalProgress - lastPartProgress + newPartProgress;
-                lastPartProgress = newPartProgress;
-
-                _this3._emitProgress(totalProgress, totalSize);
-              },
               // Wait until every partial upload has an upload URL, so we can add
               // them to the URL storage.
               _onUploadUrlAvailable: function _onUploadUrlAvailable() {
@@ -6335,13 +7591,62 @@ var BaseUpload = /*#__PURE__*/function () {
               }
             });
 
-            var upload = new BaseUpload(value, options);
-            upload.start(); // Store the upload in an array, so we can later abort them if necessary.
+            var upload = new BaseUpload(value, options); // Finalize the partial upload fields.
+
+            upload.options.onProgress = function (newPartProgress) {
+              // Based on the progress for this partial upload, calculate the progress
+              // for the entire final upload.
+              //
+              // NOTE: This is called for each partial upload but `_emitProgress`
+              // calls the `onProgress` method for the original upload.
+              totalProgress = totalProgress - lastPartProgress + newPartProgress;
+              lastPartProgress = newPartProgress; // Signal to the initial `BaseUpload` object.
+
+              _this3._emitProgress(totalProgress, totalSize); // If a chunk stagger is set, signal to the other upload when it can
+              // start uploading.
+
+
+              if (staggerPercent !== null) {
+                // Calculate stagger using the current chunk and not the
+                // current part size.
+                var chunk = upload._currentChunk;
+                var chunkProgress = newPartProgress - chunkSize * chunk.indexInPart;
+                var chunkPercent = chunkProgress / chunkSize * 100;
+                var nextChunk = chunk.nextChunkStagger;
+
+                if (nextChunk !== null && !nextChunk.resolved && chunkPercent >= staggerPercent) {
+                  // The next partial upload that should start when this partial upload
+                  // reaches the stagger for a chunk.
+                  nextChunk.resolve();
+                  nextChunk.resolved = true;
+                }
+              }
+            };
+
+            upload._initialUpload = false;
+            var promise = Promise.resolve();
+
+            if (staggerPercent !== null) {
+              var currentChunk = partsChunks[index][0]; // Wait for the initial stagger for this chunk before starting the part.
+
+              promise = currentChunk.promise;
+              upload._currentChunk = currentChunk;
+            }
+
+            promise.then(function () {
+              return upload.start();
+            }); // Store the uploads in an array, so we can later abort them if necessary.
 
             _this3._parallelUploads.push(upload);
           });
         });
       });
+
+      if (staggerPercent !== null) {
+        // Kick off the first upload.
+        firstChunk.resolve();
+      }
+
       var req; // Wait until all partial uploads are finished and we can send the POST request for
       // creating the final upload.
 
@@ -6867,6 +8172,8 @@ var BaseUpload = /*#__PURE__*/function () {
   }, {
     key: "_handleUploadResponse",
     value: function _handleUploadResponse(req, res) {
+      var _this10 = this;
+
       var offset = parseInt(res.getHeader('Upload-Offset'), 10);
 
       if (isNaN(offset)) {
@@ -6888,9 +8195,23 @@ var BaseUpload = /*#__PURE__*/function () {
         this._source.close();
 
         return;
+      } // Not done uploading yet.
+
+
+      var promise = Promise.resolve();
+
+      if (this.options.staggerPercent !== null) {
+        this._currentChunk = this._currentChunk.nextChunkInPart;
+
+        if (this.currentChunk !== null) {
+          // If the stagger is set, wait for the stagger for the current chunk.
+          promise = this._currentChunk.promise;
+        }
       }
 
-      this._performUpload();
+      promise.then(function () {
+        return _this10._performUpload();
+      });
     }
     /**
      * Create a new HTTP request object with the given method and URL.
@@ -6914,12 +8235,12 @@ var BaseUpload = /*#__PURE__*/function () {
   }, {
     key: "_removeFromUrlStorage",
     value: function _removeFromUrlStorage() {
-      var _this10 = this;
+      var _this11 = this;
 
       if (!this._urlStorageKey) return;
 
       this._urlStorage.removeUpload(this._urlStorageKey)["catch"](function (err) {
-        _this10._emitError(err);
+        _this11._emitError(err);
       });
 
       this._urlStorageKey = null;
@@ -6933,7 +8254,7 @@ var BaseUpload = /*#__PURE__*/function () {
   }, {
     key: "_saveUploadInUrlStorage",
     value: function _saveUploadInUrlStorage() {
-      var _this11 = this; // Only if a fingerprint was calculated for the input (i.e. not a stream), we can store the upload URL.
+      var _this12 = this; // Only if a fingerprint was calculated for the input (i.e. not a stream), we can store the upload URL.
 
 
       if (!this.options.storeFingerprintForResuming || !this._fingerprint) {
@@ -6955,9 +8276,9 @@ var BaseUpload = /*#__PURE__*/function () {
       }
 
       this._urlStorage.addUpload(this._fingerprint, storedUpload).then(function (urlStorageKey) {
-        return _this11._urlStorageKey = urlStorageKey;
+        return _this12._urlStorageKey = urlStorageKey;
       })["catch"](function (err) {
-        _this11._emitError(err);
+        _this12._emitError(err);
       });
     }
     /**
@@ -7154,13 +8475,12 @@ function resolveUrl(origin, link) {
  *
  * @param {number} totalSize The byte size of the upload, which will be split.
  * @param {number} partCount The number in how many parts the upload will be split.
- * @param {string[]} previousUrls The upload URLs for previous parts.
  * @return {object[]}
  * @api private
  */
 
 
-function splitSizeIntoParts(totalSize, partCount, previousUrls) {
+function splitSizeIntoParts(totalSize, partCount) {
   var partSize = Math.floor(totalSize / partCount);
   var parts = [];
 
@@ -7171,15 +8491,127 @@ function splitSizeIntoParts(totalSize, partCount, previousUrls) {
     });
   }
 
-  parts[partCount - 1].end = totalSize; // Attach URLs from previous uploads, if available.
+  parts[partCount - 1].end = totalSize;
+  return parts;
+}
+/**
+ * Build the chunk staggers.
+ *
+ * NOTE: The code that builds parts must be kept in sync with
+ * `splitSizeIntoChunkAlignedParts` in skynet-js.
+ */
 
-  if (previousUrls) {
-    parts.forEach(function (part, index) {
-      part.uploadUrl = previousUrls[index] || null;
+
+function buildChunkStaggers(totalSize, partCount, chunkSize) {
+  // Helper function to create a new chunk in partsChunks at the given part.
+  function newChunk(partsChunks, partIndex) {
+    var chunksForPart = partsChunks[partIndex];
+    var chunkResolve;
+    var promise = new Promise(function (resolve) {
+      return chunkResolve = resolve;
     });
+    var chunk = {
+      promise: promise,
+      resolve: chunkResolve,
+      resolved: false,
+      nextChunkStagger: null,
+      nextChunkInPart: null,
+      indexInPart: chunksForPart.length
+    }; // Previous chunk in part should point to this chunk.
+
+    if (chunksForPart.length > 0) {
+      chunksForPart[chunksForPart.length - 1].nextChunkInPart = chunk;
+    } // Push chunk to part.
+
+
+    chunksForPart.push(chunk);
+  } // Validation.
+
+
+  if (partCount < 1) {
+    throw new Error("Expected option 'partCount' to be greater than or equal to 1, was type 'number', value '".concat(partCount, "'"));
   }
 
-  return parts;
+  if (chunkSize < 1) {
+    throw new Error("Expected option 'chunkSize' to be greater than or equal to 1, was type 'number', value '".concat(chunkSize, "'"));
+  } // NOTE: Unexpected code flow. `uploadLargeFileRequest` in skynet-js should
+  // not enable parallel uploads for this case.
+
+
+  if (totalSize <= chunkSize) {
+    throw new Error("Expected parameter 'totalSize' to be greater than the size of a chunk ('".concat(chunkSize, "'), was type 'number', value '").concat(totalSize, "'"));
+  } // The lists of chunks for each part. Initialize all to empty arrays.
+
+
+  var partsChunks = [];
+
+  for (var i = 0; i < partCount; i++) {
+    partsChunks.push([]);
+  } // Assign chunks to parts in order, looping back to the beginning if we get to
+  // the end of the parts array.
+
+
+  var numFullChunks = Math.floor(totalSize / chunkSize);
+
+  for (var _i2 = 0; _i2 < numFullChunks; _i2++) {
+    newChunk(partsChunks, _i2 % partCount);
+  } // Whether there is any leftover that has to go in the last part.
+
+
+  var hasLeftover = totalSize % chunkSize > 0; // If there is non-chunk-aligned leftover, add a chunk for it.
+
+  if (hasLeftover) {
+    // Assign the leftover to the part after the last part that was visited, or
+    // the last part in the array if all parts were used.
+    //
+    // NOTE: We don't need to worry about empty parts, tus ignores those.
+    var lastIndex = Math.min(numFullChunks, partCount - 1);
+    newChunk(partsChunks, lastIndex);
+  } // Now assign the stagger order. We start at the part with the most chunks, so
+  // we don't end up with any final pauses.
+  //
+  // NOTE: The first longest part is either the first part or the last. The latter
+  // can happen. when all parts have one chunk and the last part gets the extra
+  // leftover. We explicitly check all parts just to be defensive/futureproof
+  // against our assumptions.
+
+
+  var longestPartIndex = 0;
+  var longestPartLength = partsChunks[0].length;
+
+  for (var _i3 = 1; _i3 < partsChunks.length; _i3++) {
+    if (partsChunks[_i3].length > longestPartLength) {
+      longestPartIndex = _i3;
+      longestPartLength = partsChunks[_i3].length;
+    }
+  } // Get the chunk at which to start uploading.
+
+
+  var firstChunk = partsChunks[longestPartIndex][0]; // Build the stagger sequence.
+
+  var lastChunk = null; // Loop over the chunk indices for the longest part.
+
+  for (var _i4 = 0; _i4 < longestPartLength; _i4++) {
+    // Loop over the parts, starting from the longest. This keeps a stagger
+    // between chunks and prevents pauses. We roll over to the first part
+    // if we need to.
+    for (var j = longestPartIndex; j < longestPartIndex + partCount; j++) {
+      // Roll over to the first part if we need to with the modulo.
+      var index = j % partCount;
+
+      if (partsChunks[index].length > _i4) {
+        var chunk = partsChunks[index][_i4]; // Last chunk in stagger order should point to this one.
+
+        if (lastChunk !== null) {
+          lastChunk.nextChunkStagger = chunk;
+        }
+
+        lastChunk = chunk;
+      }
+    }
+  }
+
+  return [partsChunks, firstChunk];
 }
 
 BaseUpload.defaultOptions = defaultOptions;
@@ -7188,7 +8620,7 @@ exports["default"] = _default;
 
 /***/ }),
 
-/***/ 7209:
+/***/ 1858:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -7218,565 +8650,6 @@ function uuid() {
     return v.toString(16);
   });
 }
-
-/***/ }),
-
-/***/ 6360:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-const axios = __nccwpck_require__(6545);
-const { SkynetClient: BrowserSkynetClient } = __nccwpck_require__(2528);
-
-const { defaultPortalUrl, makeUrl } = __nccwpck_require__(7964);
-
-class SkynetClient {
-  /**
-   * The Skynet Client which can be used to access Skynet.
-   * @constructor
-   * @param {string} [portalUrl="https://siasky.net"] - The portal URL to use to access Skynet, if specified. To use the default portal while passing custom options, use "".
-   * @param {Object} [customOptions={}] - Configuration for the client.
-   * @param {string} [customOptions.APIKey] - Authentication password to use.
-   * @param {string} [customOptions.skynetApiKey] - Authentication API key to use for a Skynet portal (sets the "Skynet-Api-Key" header).
-   * @param {string} [customCookie=""] - Custom cookie header to set.
-   * @param {string} [customOptions.customUserAgent=""] - Custom user agent header to set.
-   * @param {Function} [customOptions.onUploadProgress] - Optional callback to track progress.
-   */
-  constructor(portalUrl, customOptions = {}) {
-    // Check if portal URL provided twice.
-
-    if (portalUrl && customOptions.portalUrl) {
-      throw new Error(
-        "Both 'portalUrl' parameter provided and 'customOptions.portalUrl' provided. Please pass only one in order to avoid conflicts."
-      );
-    }
-
-    // Add portal URL to options if given.
-
-    this.customOptions = { ...customOptions };
-    // If portal was not given, the default portal URL will be used.
-    if (portalUrl) {
-      // Set the portalUrl if given.
-      this.customOptions.portalUrl = portalUrl;
-    }
-
-    // Re-export selected client methods from skynet-js.
-
-    // Create the browser client. It requires an explicit portal URL to be passed in Node contexts. We also have to pass valid custom options, so we remove any unexpected ones.
-    const browserClientOptions = { ...this.customOptions };
-    delete browserClientOptions.portalUrl;
-    const browserClient = new BrowserSkynetClient(portalUrl || defaultPortalUrl(), browserClientOptions);
-    this.browserClient = browserClient;
-
-    // Download
-    this.getSkylinkUrl = browserClient.getSkylinkUrl.bind(browserClient);
-    this.getMetadata = browserClient.getMetadata.bind(browserClient);
-
-    // File API
-    this.file = {
-      getEntryData: browserClient.file.getEntryData.bind(browserClient),
-      getEntryLink: browserClient.file.getEntryLink.bind(browserClient),
-    };
-
-    // SkyDB
-    this.db = {
-      setDataLink: browserClient.db.setDataLink.bind(browserClient),
-    };
-
-    // Registry
-    this.registry = {
-      getEntry: browserClient.registry.getEntry.bind(browserClient),
-      getEntryUrl: browserClient.registry.getEntryUrl.bind(browserClient),
-      // Don't bind the client since this method doesn't take the client.
-      getEntryLink: browserClient.registry.getEntryLink,
-      setEntry: browserClient.registry.setEntry.bind(browserClient),
-      postSignedEntry: browserClient.registry.postSignedEntry.bind(browserClient),
-    };
-  }
-
-  /**
-   * Creates and executes a request.
-   * @param {Object} config - Configuration for the request. See docs for constructor for the full list of options.
-   */
-  executeRequest(config) {
-    let url = config.url;
-    if (!url) {
-      url = makeUrl(config.portalUrl, config.endpointPath, config.extraPath ? config.extraPath : "");
-    }
-
-    // Build headers.
-    const headers = buildRequestHeaders(
-      config.headers,
-      config.customUserAgent,
-      config.customCookie,
-      config.skynetApiKey
-    );
-
-    return axios({
-      url,
-      method: config.method,
-      data: config.data,
-      params: config.params,
-      headers,
-      auth: config.APIKey && { username: "", password: config.APIKey },
-      responseType: config.responseType,
-      onUploadProgress:
-        config.onUploadProgress &&
-        function ({ loaded, total }) {
-          const progress = loaded / total;
-
-          config.onUploadProgress(progress, { loaded, total });
-        },
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-    });
-  }
-}
-
-/**
- * Helper function that builds the request headers.
- *
- * @param [baseHeaders] - Any base headers.
- * @param [customUserAgent] - A custom user agent to set.
- * @param [customCookie] - A custom cookie.
- * @param [skynetApiKey] - Authentication key to use for a Skynet portal.
- * @returns - The built headers.
- */
-function buildRequestHeaders(baseHeaders, customUserAgent, customCookie, skynetApiKey) {
-  const returnHeaders = { ...baseHeaders };
-  // Set some headers from common options.
-  if (customUserAgent) {
-    returnHeaders["User-Agent"] = customUserAgent;
-  }
-  if (customCookie) {
-    returnHeaders["Cookie"] = customCookie;
-  }
-  if (skynetApiKey) {
-    returnHeaders["Skynet-Api-Key"] = skynetApiKey;
-  }
-  return returnHeaders;
-}
-
-// Export the client.
-
-module.exports = { SkynetClient, buildRequestHeaders };
-
-// Get the following files to run or the client's methods won't be defined.
-__nccwpck_require__(6760);
-__nccwpck_require__(9724);
-__nccwpck_require__(472);
-
-
-/***/ }),
-
-/***/ 6760:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-/* eslint-disable no-unused-vars */
-
-
-
-const fs = __nccwpck_require__(7147);
-
-const { defaultOptions, trimSiaPrefix } = __nccwpck_require__(7964);
-const { SkynetClient } = __nccwpck_require__(6360);
-
-const defaultDownloadOptions = {
-  ...defaultOptions("/"),
-};
-
-const defaultGetMetadataOptions = {
-  ...defaultOptions("/"),
-};
-
-SkynetClient.prototype.downloadFile = function (path, skylink, customOptions = {}) {
-  const opts = { ...defaultDownloadOptions, ...this.customOptions, ...customOptions };
-
-  skylink = trimSiaPrefix(skylink);
-
-  const writer = fs.createWriteStream(path);
-
-  return new Promise((resolve, reject) => {
-    this.executeRequest({
-      ...opts,
-      method: "get",
-      extraPath: skylink,
-      responseType: "stream",
-    })
-      .then((response) => {
-        response.data.pipe(writer);
-        writer.on("finish", resolve);
-        writer.on("error", reject);
-      })
-      .catch((error) => {
-        reject(error);
-      });
-  });
-};
-
-
-/***/ }),
-
-/***/ 9724:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __nccwpck_require__) => {
-
-/* eslint-disable no-unused-vars */
-
-const { defaultOptions } = __nccwpck_require__(7964);
-const { SkynetClient } = __nccwpck_require__(6360);
-
-const defaultAddSkykeyOptions = {
-  ...defaultOptions("/skynet/addskykey"),
-};
-
-const defaultCreateSkykeyOptions = {
-  ...defaultOptions("/skynet/createskykey"),
-};
-
-const defaultGetSkykeyOptions = {
-  ...defaultOptions("/skynet/skykey"),
-};
-
-const defaultGetSkykeysOptions = {
-  ...defaultOptions("/skynet/skykeys"),
-};
-
-SkynetClient.prototype.addSkykey = function (skykey, customOptions = {}) {
-  const opts = { ...defaultAddSkykeyOptions, ...this.customOptions, ...customOptions };
-
-  throw new Error("Unimplemented");
-};
-
-SkynetClient.prototype.createSkykey = function (skykeyName, skykeyType, customOptions = {}) {
-  const opts = { ...defaultCreateSkykeyOptions, ...this.customOptions, ...customOptions };
-
-  throw new Error("Unimplemented");
-};
-
-SkynetClient.prototype.getSkykeyById = function (skykeyId, customOptions = {}) {
-  const opts = { ...defaultGetSkykeyOptions, ...this.customOptions, ...customOptions };
-
-  throw new Error("Unimplemented");
-};
-
-SkynetClient.prototype.getSkykeyByName = function (skykeyName, customOptions = {}) {
-  const opts = { ...defaultGetSkykeyOptions, ...this.customOptions, ...customOptions };
-
-  throw new Error("Unimplemented");
-};
-
-SkynetClient.prototype.getSkykeys = function (customOptions = {}) {
-  const opts = { ...defaultGetSkykeysOptions, ...this.customOptions, ...customOptions };
-
-  throw new Error("Unimplemented");
-};
-
-
-/***/ }),
-
-/***/ 472:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const FormData = __nccwpck_require__(4334);
-const fs = __nccwpck_require__(7147);
-const p = __nccwpck_require__(1017);
-
-const { Upload } = __nccwpck_require__(4560);
-
-const { buildRequestHeaders, SkynetClient } = __nccwpck_require__(6360);
-const { defaultOptions, getFileMimeType, makeUrl, walkDirectory, uriSkynetPrefix } = __nccwpck_require__(7964);
-
-/**
- * The tus chunk size is (4MiB - encryptionOverhead) * dataPieces, set in skyd.
- */
-const TUS_CHUNK_SIZE = (1 << 22) * 10;
-
-/**
- * The retry delays, in ms. Data is stored in skyd for up to 20 minutes, so the
- * total delays should not exceed that length of time.
- */
-const DEFAULT_TUS_RETRY_DELAYS = [0, 5000, 15000, 60000, 300000, 600000];
-
-const defaultUploadOptions = {
-  ...defaultOptions("/skynet/skyfile"),
-  endpointLargeUpload: "/skynet/tus",
-
-  portalFileFieldname: "file",
-  portalDirectoryFileFieldname: "files[]",
-  customFilename: "",
-  customDirname: "",
-  dryRun: false,
-  errorPages: undefined,
-  largeFileSize: TUS_CHUNK_SIZE,
-  retryDelays: DEFAULT_TUS_RETRY_DELAYS,
-  tryFiles: undefined,
-};
-
-SkynetClient.prototype.uploadFile = async function (path, customOptions = {}) {
-  const opts = { ...defaultUploadOptions, ...this.customOptions, ...customOptions };
-
-  const stat = await fs.promises.stat(path);
-  const sizeInBytes = stat.size;
-  const filename = opts.customFilename ? opts.customFilename : p.basename(path);
-
-  if (sizeInBytes < opts.largeFileSize) {
-    return await uploadSmallFile(this, path, filename, opts);
-  }
-  return await uploadLargeFile(this, path, filename, sizeInBytes, opts);
-};
-
-async function uploadSmallFile(client, path, filename, opts) {
-  const params = {};
-  if (opts.dryRun) params.dryrun = true;
-
-  const formData = new FormData();
-  formData.append(opts.portalFileFieldname, fs.createReadStream(path), filename);
-
-  const response = await client.executeRequest({
-    ...opts,
-    method: "post",
-    data: formData,
-    headers: formData.getHeaders(),
-    params,
-  });
-
-  const skylink = response.data.skylink;
-  return `${uriSkynetPrefix}${skylink}`;
-}
-
-async function uploadLargeFile(client, path, filename, filesize, opts) {
-  const url = makeUrl(opts.portalUrl, opts.endpointLargeUpload);
-
-  // Build headers.
-  const headers = buildRequestHeaders({}, opts.customUserAgent, opts.customCookie);
-
-  return new Promise((resolve, reject) => {
-    const tusOpts = {
-      endpoint: url,
-      chunkSize: TUS_CHUNK_SIZE,
-      retryDelays: opts.retryDelays,
-      metadata: {
-        filename,
-        filetype: getFileMimeType(filename),
-      },
-      uploadSize: filesize,
-      headers,
-      onError: (error) => {
-        // Return error body rather than entire error.
-        const res = error.originalResponse;
-        const newError = res ? new Error(res.getBody().trim()) || error : error;
-        reject(newError);
-      },
-      onSuccess: async () => {
-        if (!upload.url) {
-          reject(new Error("'upload.url' was not set"));
-          return;
-        }
-
-        // Call HEAD to get the metadata, including the skylink.
-        const resp = await client.executeRequest({
-          ...opts,
-          url: upload.url,
-          endpointPath: opts.endpointLargeUpload,
-          method: "head",
-          headers: { ...headers, "Tus-Resumable": "1.0.0" },
-        });
-        const skylink = resp.headers["skynet-skylink"];
-        resolve(`${uriSkynetPrefix}${skylink}`);
-      },
-    };
-
-    const upload = new Upload(fs.createReadStream(path), tusOpts);
-    upload.start();
-  });
-}
-
-SkynetClient.prototype.uploadDirectory = async function (path, customOptions = {}) {
-  const opts = { ...defaultUploadOptions, ...this.customOptions, ...customOptions };
-
-  // Check if there is a directory at given path.
-  const stat = await fs.promises.stat(path);
-  if (!stat.isDirectory()) {
-    throw new Error(`Given path is not a directory: ${path}`);
-  }
-
-  const formData = new FormData();
-  path = p.resolve(path);
-  let basepath = path;
-  // Ensure the basepath ends in a slash.
-  if (!basepath.endsWith("/")) {
-    basepath += "/";
-    // Normalize the slash on non-Unix filesystems.
-    basepath = p.normalize(basepath);
-  }
-
-  for (const file of walkDirectory(path)) {
-    // Remove the dir path from the start of the filename if it exists.
-    let filename = file;
-    if (file.startsWith(basepath)) {
-      filename = file.replace(basepath, "");
-    }
-    formData.append(opts.portalDirectoryFileFieldname, fs.createReadStream(file), { filepath: filename });
-  }
-
-  // Use either the custom dirname, or the last portion of the path.
-  let filename = opts.customDirname || p.basename(path);
-  if (filename.startsWith("/")) {
-    filename = filename.slice(1);
-  }
-  const params = { filename };
-  if (opts.tryFiles) {
-    params.tryfiles = JSON.stringify(opts.tryFiles);
-  }
-  if (opts.errorPages) {
-    params.errorpages = JSON.stringify(opts.errorPages);
-  }
-
-  if (opts.dryRun) params.dryrun = true;
-
-  const response = await this.executeRequest({
-    ...opts,
-    method: "post",
-    data: formData,
-    headers: formData.getHeaders(),
-    params,
-  });
-
-  return `${uriSkynetPrefix}${response.data.skylink}`;
-};
-
-
-/***/ }),
-
-/***/ 7964:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const path = __nccwpck_require__(1017);
-const fs = __nccwpck_require__(7147);
-
-const mime = __nccwpck_require__(531);
-const urljoin = __nccwpck_require__(2821);
-
-/**
- * The default URL of the Skynet portal to use in the absence of configuration.
- */
-const defaultSkynetPortalUrl = "https://siasky.net";
-
-/**
- * The URI prefix for Skynet.
- */
-const uriSkynetPrefix = "sia://";
-
-function defaultOptions(endpointPath) {
-  return {
-    portalUrl: defaultPortalUrl(),
-    endpointPath: endpointPath,
-
-    APIKey: "",
-    skynetApiKey: "",
-    customUserAgent: "",
-  };
-}
-
-/**
- * Selects the default portal URL to use when initializing a client. May involve network queries to several candidate portals.
- */
-function defaultPortalUrl() {
-  return defaultSkynetPortalUrl;
-}
-
-/**
- * Get the file mime type. Try to guess the file type based on the extension.
- *
- * @param filename - The filename.
- * @returns - The mime type.
- */
-function getFileMimeType(filename) {
-  let ext = path.extname(filename);
-  ext = trimPrefix(ext, ".");
-  if (ext !== "") {
-    const mimeType = mime.getType(ext);
-    if (mimeType) {
-      return mimeType;
-    }
-  }
-  return "";
-}
-
-/**
- * Properly joins paths together to create a URL. Takes a variable number of
- * arguments.
- */
-function makeUrl() {
-  let args = Array.from(arguments);
-  return args.reduce(function (acc, cur) {
-    return urljoin(acc, cur);
-  });
-}
-
-/**
- * Removes a prefix from the beginning of the string.
- *
- * @param str - The string to process.
- * @param prefix - The prefix to remove.
- * @param [limit] - Maximum amount of times to trim. No limit by default.
- * @returns - The processed string.
- */
-function trimPrefix(str, prefix, limit) {
-  if (typeof limit !== "number" && typeof limit !== "undefined") {
-    throw new Error(`Invalid input: 'limit' must be type 'number | undefined', was '${typeof limit}'`);
-  }
-
-  while (str.startsWith(prefix)) {
-    if (limit !== undefined && limit <= 0) {
-      break;
-    }
-    str = str.slice(prefix.length);
-    if (limit) {
-      limit -= 1;
-    }
-  }
-  return str;
-}
-
-function walkDirectory(filepath, out) {
-  let files = [];
-  if (!fs.existsSync(filepath)) {
-    return files;
-  }
-
-  for (const subpath of fs.readdirSync(filepath)) {
-    const fullpath = path.join(filepath, subpath);
-    if (fs.statSync(fullpath).isDirectory()) {
-      files = files.concat(walkDirectory(fullpath, out));
-      continue;
-    }
-    files.push(fullpath);
-  }
-  return files;
-}
-
-function trimSiaPrefix(str) {
-  return trimPrefix(str, uriSkynetPrefix);
-}
-
-module.exports = {
-  defaultOptions,
-  defaultPortalUrl,
-  defaultSkynetPortalUrl,
-  getFileMimeType,
-  makeUrl,
-  trimSiaPrefix,
-  uriSkynetPrefix,
-  walkDirectory,
-};
-
 
 /***/ }),
 
@@ -8556,12 +9429,13 @@ var httpsFollow = (__nccwpck_require__(7707).https);
 var url = __nccwpck_require__(7310);
 var zlib = __nccwpck_require__(9796);
 var VERSION = (__nccwpck_require__(4322).version);
-var createError = __nccwpck_require__(5226);
-var enhanceError = __nccwpck_require__(1516);
 var transitionalDefaults = __nccwpck_require__(936);
-var Cancel = __nccwpck_require__(8875);
+var AxiosError = __nccwpck_require__(2093);
+var CanceledError = __nccwpck_require__(4098);
 
 var isHttps = /https:?/;
+
+var supportedProtocols = [ 'http:', 'https:', 'file:' ];
 
 /**
  *
@@ -8632,7 +9506,10 @@ module.exports = function httpAdapter(config) {
       headers['User-Agent'] = 'axios/' + VERSION;
     }
 
-    if (data && !utils.isStream(data)) {
+    // support for https://www.npmjs.com/package/form-data api
+    if (utils.isFormData(data) && utils.isFunction(data.getHeaders)) {
+      Object.assign(headers, data.getHeaders());
+    } else if (data && !utils.isStream(data)) {
       if (Buffer.isBuffer(data)) {
         // Nothing to do...
       } else if (utils.isArrayBuffer(data)) {
@@ -8640,14 +9517,19 @@ module.exports = function httpAdapter(config) {
       } else if (utils.isString(data)) {
         data = Buffer.from(data, 'utf-8');
       } else {
-        return reject(createError(
+        return reject(new AxiosError(
           'Data after transformation must be a string, an ArrayBuffer, a Buffer, or a Stream',
+          AxiosError.ERR_BAD_REQUEST,
           config
         ));
       }
 
       if (config.maxBodyLength > -1 && data.length > config.maxBodyLength) {
-        return reject(createError('Request body larger than maxBodyLength limit', config));
+        return reject(new AxiosError(
+          'Request body larger than maxBodyLength limit',
+          AxiosError.ERR_BAD_REQUEST,
+          config
+        ));
       }
 
       // Add Content-Length header if data exists
@@ -8667,7 +9549,15 @@ module.exports = function httpAdapter(config) {
     // Parse url
     var fullPath = buildFullPath(config.baseURL, config.url);
     var parsed = url.parse(fullPath);
-    var protocol = parsed.protocol || 'http:';
+    var protocol = parsed.protocol || supportedProtocols[0];
+
+    if (supportedProtocols.indexOf(protocol) === -1) {
+      return reject(new AxiosError(
+        'Unsupported protocol ' + protocol,
+        AxiosError.ERR_BAD_REQUEST,
+        config
+      ));
+    }
 
     if (!auth && parsed.auth) {
       var urlAuth = parsed.auth.split(':');
@@ -8772,6 +9662,9 @@ module.exports = function httpAdapter(config) {
       if (config.maxRedirects) {
         options.maxRedirects = config.maxRedirects;
       }
+      if (config.beforeRedirect) {
+        options.beforeRedirect = config.beforeRedirect;
+      }
       transport = isHttpsProxy ? httpsFollow : httpFollow;
     }
 
@@ -8833,8 +9726,8 @@ module.exports = function httpAdapter(config) {
             // stream.destoy() emit aborted event before calling reject() on Node.js v16
             rejected = true;
             stream.destroy();
-            reject(createError('maxContentLength size of ' + config.maxContentLength + ' exceeded',
-              config, null, lastRequest));
+            reject(new AxiosError('maxContentLength size of ' + config.maxContentLength + ' exceeded',
+              AxiosError.ERR_BAD_RESPONSE, config, lastRequest));
           }
         });
 
@@ -8843,12 +9736,17 @@ module.exports = function httpAdapter(config) {
             return;
           }
           stream.destroy();
-          reject(createError('error request aborted', config, 'ERR_REQUEST_ABORTED', lastRequest));
+          reject(new AxiosError(
+            'maxContentLength size of ' + config.maxContentLength + ' exceeded',
+            AxiosError.ERR_BAD_RESPONSE,
+            config,
+            lastRequest
+          ));
         });
 
         stream.on('error', function handleStreamError(err) {
           if (req.aborted) return;
-          reject(enhanceError(err, config, null, lastRequest));
+          reject(AxiosError.from(err, null, config, lastRequest));
         });
 
         stream.on('end', function handleStreamEnd() {
@@ -8862,7 +9760,7 @@ module.exports = function httpAdapter(config) {
             }
             response.data = responseData;
           } catch (err) {
-            reject(enhanceError(err, config, err.code, response.request, response));
+            reject(AxiosError.from(err, null, config, response.request, response));
           }
           settle(resolve, reject, response);
         });
@@ -8871,8 +9769,9 @@ module.exports = function httpAdapter(config) {
 
     // Handle errors
     req.on('error', function handleRequestError(err) {
-      if (req.aborted && err.code !== 'ERR_FR_TOO_MANY_REDIRECTS') return;
-      reject(enhanceError(err, config, null, req));
+      // @todo remove
+      // if (req.aborted && err.code !== AxiosError.ERR_FR_TOO_MANY_REDIRECTS) return;
+      reject(AxiosError.from(err, null, config, req));
     });
 
     // set tcp keep alive to prevent drop connection by peer
@@ -8887,10 +9786,10 @@ module.exports = function httpAdapter(config) {
       var timeout = parseInt(config.timeout, 10);
 
       if (isNaN(timeout)) {
-        reject(createError(
+        reject(new AxiosError(
           'error trying to parse `config.timeout` to int',
+          AxiosError.ERR_BAD_OPTION_VALUE,
           config,
-          'ERR_PARSE_TIMEOUT',
           req
         ));
 
@@ -8904,17 +9803,11 @@ module.exports = function httpAdapter(config) {
       // ClientRequest.setTimeout will be fired on the specify milliseconds, and can make sure that abort() will be fired after connect.
       req.setTimeout(timeout, function handleRequestTimeout() {
         req.abort();
-        var timeoutErrorMessage = '';
-        if (config.timeoutErrorMessage) {
-          timeoutErrorMessage = config.timeoutErrorMessage;
-        } else {
-          timeoutErrorMessage = 'timeout of ' + config.timeout + 'ms exceeded';
-        }
         var transitional = config.transitional || transitionalDefaults;
-        reject(createError(
-          timeoutErrorMessage,
+        reject(new AxiosError(
+          'timeout of ' + timeout + 'ms exceeded',
+          transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED,
           config,
-          transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
           req
         ));
       });
@@ -8927,7 +9820,7 @@ module.exports = function httpAdapter(config) {
         if (req.aborted) return;
 
         req.abort();
-        reject(!cancel || (cancel && cancel.type) ? new Cancel('canceled') : cancel);
+        reject(!cancel || (cancel && cancel.type) ? new CanceledError() : cancel);
       };
 
       config.cancelToken && config.cancelToken.subscribe(onCanceled);
@@ -8940,7 +9833,7 @@ module.exports = function httpAdapter(config) {
     // Send the request
     if (utils.isStream(data)) {
       data.on('error', function handleStreamError(err) {
-        reject(enhanceError(err, config, null, req));
+        reject(AxiosError.from(err, config, null, req));
       }).pipe(req);
     } else {
       req.end(data);
@@ -8964,9 +9857,10 @@ var buildURL = __nccwpck_require__(646);
 var buildFullPath = __nccwpck_require__(1934);
 var parseHeaders = __nccwpck_require__(6455);
 var isURLSameOrigin = __nccwpck_require__(3608);
-var createError = __nccwpck_require__(5226);
 var transitionalDefaults = __nccwpck_require__(936);
-var Cancel = __nccwpck_require__(8875);
+var AxiosError = __nccwpck_require__(2093);
+var CanceledError = __nccwpck_require__(4098);
+var parseProtocol = __nccwpck_require__(6107);
 
 module.exports = function xhrAdapter(config) {
   return new Promise(function dispatchXhrRequest(resolve, reject) {
@@ -8984,7 +9878,7 @@ module.exports = function xhrAdapter(config) {
       }
     }
 
-    if (utils.isFormData(requestData)) {
+    if (utils.isFormData(requestData) && utils.isStandardBrowserEnv()) {
       delete requestHeaders['Content-Type']; // Let the browser set it
     }
 
@@ -8998,6 +9892,7 @@ module.exports = function xhrAdapter(config) {
     }
 
     var fullPath = buildFullPath(config.baseURL, config.url);
+
     request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
 
     // Set the request timeout in MS
@@ -9061,7 +9956,7 @@ module.exports = function xhrAdapter(config) {
         return;
       }
 
-      reject(createError('Request aborted', config, 'ECONNABORTED', request));
+      reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
 
       // Clean up request
       request = null;
@@ -9071,7 +9966,7 @@ module.exports = function xhrAdapter(config) {
     request.onerror = function handleError() {
       // Real errors are hidden from us by the browser
       // onerror should only fire if it's a network error
-      reject(createError('Network Error', config, null, request));
+      reject(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request, request));
 
       // Clean up request
       request = null;
@@ -9084,10 +9979,10 @@ module.exports = function xhrAdapter(config) {
       if (config.timeoutErrorMessage) {
         timeoutErrorMessage = config.timeoutErrorMessage;
       }
-      reject(createError(
+      reject(new AxiosError(
         timeoutErrorMessage,
+        transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED,
         config,
-        transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
         request));
 
       // Clean up request
@@ -9148,7 +10043,7 @@ module.exports = function xhrAdapter(config) {
         if (!request) {
           return;
         }
-        reject(!cancel || (cancel && cancel.type) ? new Cancel('canceled') : cancel);
+        reject(!cancel || (cancel && cancel.type) ? new CanceledError() : cancel);
         request.abort();
         request = null;
       };
@@ -9162,6 +10057,14 @@ module.exports = function xhrAdapter(config) {
     if (!requestData) {
       requestData = null;
     }
+
+    var protocol = parseProtocol(fullPath);
+
+    if (protocol && [ 'http', 'https', 'file' ].indexOf(protocol) === -1) {
+      reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
+      return;
+    }
+
 
     // Send the request
     request.send(requestData);
@@ -9214,10 +10117,17 @@ var axios = createInstance(defaults);
 axios.Axios = Axios;
 
 // Expose Cancel & CancelToken
-axios.Cancel = __nccwpck_require__(8875);
+axios.CanceledError = __nccwpck_require__(4098);
 axios.CancelToken = __nccwpck_require__(1587);
 axios.isCancel = __nccwpck_require__(4057);
 axios.VERSION = (__nccwpck_require__(4322).version);
+axios.toFormData = __nccwpck_require__(470);
+
+// Expose AxiosError class
+axios.AxiosError = __nccwpck_require__(2093);
+
+// alias for CanceledError for backward compatibility
+axios.Cancel = axios.CanceledError;
 
 // Expose all/spread
 axios.all = function all(promises) {
@@ -9236,40 +10146,13 @@ module.exports["default"] = axios;
 
 /***/ }),
 
-/***/ 8875:
-/***/ ((module) => {
-
-"use strict";
-
-
-/**
- * A `Cancel` is an object that is thrown when an operation is canceled.
- *
- * @class
- * @param {string=} message The message.
- */
-function Cancel(message) {
-  this.message = message;
-}
-
-Cancel.prototype.toString = function toString() {
-  return 'Cancel' + (this.message ? ': ' + this.message : '');
-};
-
-Cancel.prototype.__CANCEL__ = true;
-
-module.exports = Cancel;
-
-
-/***/ }),
-
 /***/ 1587:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var Cancel = __nccwpck_require__(8875);
+var CanceledError = __nccwpck_require__(4098);
 
 /**
  * A `CancelToken` is an object that can be used to request cancellation of an operation.
@@ -9325,13 +10208,13 @@ function CancelToken(executor) {
       return;
     }
 
-    token.reason = new Cancel(message);
+    token.reason = new CanceledError(message);
     resolvePromise(token.reason);
   });
 }
 
 /**
- * Throws a `Cancel` if cancellation has been requested.
+ * Throws a `CanceledError` if cancellation has been requested.
  */
 CancelToken.prototype.throwIfRequested = function throwIfRequested() {
   if (this.reason) {
@@ -9390,6 +10273,36 @@ module.exports = CancelToken;
 
 /***/ }),
 
+/***/ 4098:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var AxiosError = __nccwpck_require__(2093);
+var utils = __nccwpck_require__(328);
+
+/**
+ * A `CanceledError` is an object that is thrown when an operation is canceled.
+ *
+ * @class
+ * @param {string=} message The message.
+ */
+function CanceledError(message) {
+  // eslint-disable-next-line no-eq-null,eqeqeq
+  AxiosError.call(this, message == null ? 'canceled' : message, AxiosError.ERR_CANCELED);
+  this.name = 'CanceledError';
+}
+
+utils.inherits(CanceledError, AxiosError, {
+  __CANCEL__: true
+});
+
+module.exports = CanceledError;
+
+
+/***/ }),
+
 /***/ 4057:
 /***/ ((module) => {
 
@@ -9414,6 +10327,7 @@ var buildURL = __nccwpck_require__(646);
 var InterceptorManager = __nccwpck_require__(3214);
 var dispatchRequest = __nccwpck_require__(5062);
 var mergeConfig = __nccwpck_require__(4831);
+var buildFullPath = __nccwpck_require__(1934);
 var validator = __nccwpck_require__(1632);
 
 var validators = validator.validators;
@@ -9528,7 +10442,8 @@ Axios.prototype.request = function request(configOrUrl, config) {
 
 Axios.prototype.getUri = function getUri(config) {
   config = mergeConfig(this.defaults, config);
-  return buildURL(config.url, config.params, config.paramsSerializer).replace(/^\?/, '');
+  var fullPath = buildFullPath(config.baseURL, config.url);
+  return buildURL(fullPath, config.params, config.paramsSerializer);
 };
 
 // Provide aliases for supported request methods
@@ -9545,16 +10460,120 @@ utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData
 
 utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
   /*eslint func-names:0*/
-  Axios.prototype[method] = function(url, data, config) {
-    return this.request(mergeConfig(config || {}, {
-      method: method,
-      url: url,
-      data: data
-    }));
-  };
+
+  function generateHTTPMethod(isForm) {
+    return function httpMethod(url, data, config) {
+      return this.request(mergeConfig(config || {}, {
+        method: method,
+        headers: isForm ? {
+          'Content-Type': 'multipart/form-data'
+        } : {},
+        url: url,
+        data: data
+      }));
+    };
+  }
+
+  Axios.prototype[method] = generateHTTPMethod();
+
+  Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
 });
 
 module.exports = Axios;
+
+
+/***/ }),
+
+/***/ 2093:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(328);
+
+/**
+ * Create an Error with the specified message, config, error code, request and response.
+ *
+ * @param {string} message The error message.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [config] The config.
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The created error.
+ */
+function AxiosError(message, code, config, request, response) {
+  Error.call(this);
+  this.message = message;
+  this.name = 'AxiosError';
+  code && (this.code = code);
+  config && (this.config = config);
+  request && (this.request = request);
+  response && (this.response = response);
+}
+
+utils.inherits(AxiosError, Error, {
+  toJSON: function toJSON() {
+    return {
+      // Standard
+      message: this.message,
+      name: this.name,
+      // Microsoft
+      description: this.description,
+      number: this.number,
+      // Mozilla
+      fileName: this.fileName,
+      lineNumber: this.lineNumber,
+      columnNumber: this.columnNumber,
+      stack: this.stack,
+      // Axios
+      config: this.config,
+      code: this.code,
+      status: this.response && this.response.status ? this.response.status : null
+    };
+  }
+});
+
+var prototype = AxiosError.prototype;
+var descriptors = {};
+
+[
+  'ERR_BAD_OPTION_VALUE',
+  'ERR_BAD_OPTION',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ERR_NETWORK',
+  'ERR_FR_TOO_MANY_REDIRECTS',
+  'ERR_DEPRECATED',
+  'ERR_BAD_RESPONSE',
+  'ERR_BAD_REQUEST',
+  'ERR_CANCELED'
+// eslint-disable-next-line func-names
+].forEach(function(code) {
+  descriptors[code] = {value: code};
+});
+
+Object.defineProperties(AxiosError, descriptors);
+Object.defineProperty(prototype, 'isAxiosError', {value: true});
+
+// eslint-disable-next-line func-names
+AxiosError.from = function(error, code, config, request, response, customProps) {
+  var axiosError = Object.create(prototype);
+
+  utils.toFlatObject(error, axiosError, function filter(obj) {
+    return obj !== Error.prototype;
+  });
+
+  AxiosError.call(axiosError, error.message, code, config, request, response);
+
+  axiosError.name = error.name;
+
+  customProps && Object.assign(axiosError, customProps);
+
+  return axiosError;
+};
+
+module.exports = AxiosError;
 
 
 /***/ }),
@@ -9649,32 +10668,6 @@ module.exports = function buildFullPath(baseURL, requestedURL) {
 
 /***/ }),
 
-/***/ 5226:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var enhanceError = __nccwpck_require__(1516);
-
-/**
- * Create an Error with the specified message, config, error code, request and response.
- *
- * @param {string} message The error message.
- * @param {Object} config The config.
- * @param {string} [code] The error code (for example, 'ECONNABORTED').
- * @param {Object} [request] The request.
- * @param {Object} [response] The response.
- * @returns {Error} The created error.
- */
-module.exports = function createError(message, config, code, request, response) {
-  var error = new Error(message);
-  return enhanceError(error, config, code, request, response);
-};
-
-
-/***/ }),
-
 /***/ 5062:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -9685,10 +10678,10 @@ var utils = __nccwpck_require__(328);
 var transformData = __nccwpck_require__(9812);
 var isCancel = __nccwpck_require__(4057);
 var defaults = __nccwpck_require__(1626);
-var Cancel = __nccwpck_require__(8875);
+var CanceledError = __nccwpck_require__(4098);
 
 /**
- * Throws a `Cancel` if cancellation has been requested.
+ * Throws a `CanceledError` if cancellation has been requested.
  */
 function throwIfCancellationRequested(config) {
   if (config.cancelToken) {
@@ -9696,7 +10689,7 @@ function throwIfCancellationRequested(config) {
   }
 
   if (config.signal && config.signal.aborted) {
-    throw new Cancel('canceled');
+    throw new CanceledError();
   }
 }
 
@@ -9765,57 +10758,6 @@ module.exports = function dispatchRequest(config) {
 
     return Promise.reject(reason);
   });
-};
-
-
-/***/ }),
-
-/***/ 1516:
-/***/ ((module) => {
-
-"use strict";
-
-
-/**
- * Update an Error with the specified config, error code, and response.
- *
- * @param {Error} error The error to update.
- * @param {Object} config The config.
- * @param {string} [code] The error code (for example, 'ECONNABORTED').
- * @param {Object} [request] The request.
- * @param {Object} [response] The response.
- * @returns {Error} The error.
- */
-module.exports = function enhanceError(error, config, code, request, response) {
-  error.config = config;
-  if (code) {
-    error.code = code;
-  }
-
-  error.request = request;
-  error.response = response;
-  error.isAxiosError = true;
-
-  error.toJSON = function toJSON() {
-    return {
-      // Standard
-      message: this.message,
-      name: this.name,
-      // Microsoft
-      description: this.description,
-      number: this.number,
-      // Mozilla
-      fileName: this.fileName,
-      lineNumber: this.lineNumber,
-      columnNumber: this.columnNumber,
-      stack: this.stack,
-      // Axios
-      config: this.config,
-      code: this.code,
-      status: this.response && this.response.status ? this.response.status : null
-    };
-  };
-  return error;
 };
 
 
@@ -9907,6 +10849,7 @@ module.exports = function mergeConfig(config1, config2) {
     'decompress': defaultToConfig2,
     'maxContentLength': defaultToConfig2,
     'maxBodyLength': defaultToConfig2,
+    'beforeRedirect': defaultToConfig2,
     'transport': defaultToConfig2,
     'httpAgent': defaultToConfig2,
     'httpsAgent': defaultToConfig2,
@@ -9934,7 +10877,7 @@ module.exports = function mergeConfig(config1, config2) {
 "use strict";
 
 
-var createError = __nccwpck_require__(5226);
+var AxiosError = __nccwpck_require__(2093);
 
 /**
  * Resolve or reject a Promise based on response status.
@@ -9948,10 +10891,10 @@ module.exports = function settle(resolve, reject, response) {
   if (!response.status || !validateStatus || validateStatus(response.status)) {
     resolve(response);
   } else {
-    reject(createError(
+    reject(new AxiosError(
       'Request failed with status code ' + response.status,
+      [AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
       response.config,
-      null,
       response.request,
       response
     ));
@@ -9991,6 +10934,15 @@ module.exports = function transformData(data, headers, fns) {
 
 /***/ }),
 
+/***/ 7024:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+// eslint-disable-next-line strict
+module.exports = __nccwpck_require__(4334);
+
+
+/***/ }),
+
 /***/ 1626:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -9999,8 +10951,9 @@ module.exports = function transformData(data, headers, fns) {
 
 var utils = __nccwpck_require__(328);
 var normalizeHeaderName = __nccwpck_require__(6240);
-var enhanceError = __nccwpck_require__(1516);
+var AxiosError = __nccwpck_require__(2093);
 var transitionalDefaults = __nccwpck_require__(936);
+var toFormData = __nccwpck_require__(470);
 
 var DEFAULT_CONTENT_TYPE = {
   'Content-Type': 'application/x-www-form-urlencoded'
@@ -10065,10 +11018,20 @@ var defaults = {
       setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
       return data.toString();
     }
-    if (utils.isObject(data) || (headers && headers['Content-Type'] === 'application/json')) {
+
+    var isObjectPayload = utils.isObject(data);
+    var contentType = headers && headers['Content-Type'];
+
+    var isFileList;
+
+    if ((isFileList = utils.isFileList(data)) || (isObjectPayload && contentType === 'multipart/form-data')) {
+      var _FormData = this.env && this.env.FormData;
+      return toFormData(isFileList ? {'files[]': data} : data, _FormData && new _FormData());
+    } else if (isObjectPayload || contentType === 'application/json') {
       setContentTypeIfUnset(headers, 'application/json');
       return stringifySafely(data);
     }
+
     return data;
   }],
 
@@ -10084,7 +11047,7 @@ var defaults = {
       } catch (e) {
         if (strictJSONParsing) {
           if (e.name === 'SyntaxError') {
-            throw enhanceError(e, this, 'E_JSON_PARSE');
+            throw AxiosError.from(e, AxiosError.ERR_BAD_RESPONSE, this, null, this.response);
           }
           throw e;
         }
@@ -10105,6 +11068,10 @@ var defaults = {
 
   maxContentLength: -1,
   maxBodyLength: -1,
+
+  env: {
+    FormData: __nccwpck_require__(7024)
+  },
 
   validateStatus: function validateStatus(status) {
     return status >= 200 && status < 300;
@@ -10149,7 +11116,7 @@ module.exports = {
 /***/ ((module) => {
 
 module.exports = {
-  "version": "0.26.1"
+  "version": "0.27.2"
 };
 
 /***/ }),
@@ -10534,6 +11501,20 @@ module.exports = function parseHeaders(headers) {
 
 /***/ }),
 
+/***/ 6107:
+/***/ ((module) => {
+
+"use strict";
+
+
+module.exports = function parseProtocol(url) {
+  var match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
+  return match && match[1] || '';
+};
+
+
+/***/ }),
+
 /***/ 4850:
 /***/ ((module) => {
 
@@ -10569,6 +11550,86 @@ module.exports = function spread(callback) {
 
 /***/ }),
 
+/***/ 470:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(328);
+
+/**
+ * Convert a data object to FormData
+ * @param {Object} obj
+ * @param {?Object} [formData]
+ * @returns {Object}
+ **/
+
+function toFormData(obj, formData) {
+  // eslint-disable-next-line no-param-reassign
+  formData = formData || new FormData();
+
+  var stack = [];
+
+  function convertValue(value) {
+    if (value === null) return '';
+
+    if (utils.isDate(value)) {
+      return value.toISOString();
+    }
+
+    if (utils.isArrayBuffer(value) || utils.isTypedArray(value)) {
+      return typeof Blob === 'function' ? new Blob([value]) : Buffer.from(value);
+    }
+
+    return value;
+  }
+
+  function build(data, parentKey) {
+    if (utils.isPlainObject(data) || utils.isArray(data)) {
+      if (stack.indexOf(data) !== -1) {
+        throw Error('Circular reference detected in ' + parentKey);
+      }
+
+      stack.push(data);
+
+      utils.forEach(data, function each(value, key) {
+        if (utils.isUndefined(value)) return;
+        var fullKey = parentKey ? parentKey + '.' + key : key;
+        var arr;
+
+        if (value && !parentKey && typeof value === 'object') {
+          if (utils.endsWith(key, '{}')) {
+            // eslint-disable-next-line no-param-reassign
+            value = JSON.stringify(value);
+          } else if (utils.endsWith(key, '[]') && (arr = utils.toArray(value))) {
+            // eslint-disable-next-line func-names
+            arr.forEach(function(el) {
+              !utils.isUndefined(el) && formData.append(fullKey, convertValue(el));
+            });
+            return;
+          }
+        }
+
+        build(value, fullKey);
+      });
+
+      stack.pop();
+    } else {
+      formData.append(parentKey, convertValue(data));
+    }
+  }
+
+  build(obj);
+
+  return formData;
+}
+
+module.exports = toFormData;
+
+
+/***/ }),
+
 /***/ 1632:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -10576,6 +11637,7 @@ module.exports = function spread(callback) {
 
 
 var VERSION = (__nccwpck_require__(4322).version);
+var AxiosError = __nccwpck_require__(2093);
 
 var validators = {};
 
@@ -10603,7 +11665,10 @@ validators.transitional = function transitional(validator, version, message) {
   // eslint-disable-next-line func-names
   return function(value, opt, opts) {
     if (validator === false) {
-      throw new Error(formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')));
+      throw new AxiosError(
+        formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')),
+        AxiosError.ERR_DEPRECATED
+      );
     }
 
     if (version && !deprecatedWarnings[opt]) {
@@ -10630,7 +11695,7 @@ validators.transitional = function transitional(validator, version, message) {
 
 function assertOptions(options, schema, allowUnknown) {
   if (typeof options !== 'object') {
-    throw new TypeError('options must be an object');
+    throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
   }
   var keys = Object.keys(options);
   var i = keys.length;
@@ -10641,12 +11706,12 @@ function assertOptions(options, schema, allowUnknown) {
       var value = options[opt];
       var result = value === undefined || validator(value, opt, options);
       if (result !== true) {
-        throw new TypeError('option ' + opt + ' must be ' + result);
+        throw new AxiosError('option ' + opt + ' must be ' + result, AxiosError.ERR_BAD_OPTION_VALUE);
       }
       continue;
     }
     if (allowUnknown !== true) {
-      throw Error('Unknown option ' + opt);
+      throw new AxiosError('Unknown option ' + opt, AxiosError.ERR_BAD_OPTION);
     }
   }
 }
@@ -10670,6 +11735,22 @@ var bind = __nccwpck_require__(7065);
 // utils is a library of generic helper functions non-specific to axios
 
 var toString = Object.prototype.toString;
+
+// eslint-disable-next-line func-names
+var kindOf = (function(cache) {
+  // eslint-disable-next-line func-names
+  return function(thing) {
+    var str = toString.call(thing);
+    return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
+  };
+})(Object.create(null));
+
+function kindOfTest(type) {
+  type = type.toLowerCase();
+  return function isKindOf(thing) {
+    return kindOf(thing) === type;
+  };
+}
 
 /**
  * Determine if a value is an Array
@@ -10705,22 +11786,12 @@ function isBuffer(val) {
 /**
  * Determine if a value is an ArrayBuffer
  *
+ * @function
  * @param {Object} val The value to test
  * @returns {boolean} True if value is an ArrayBuffer, otherwise false
  */
-function isArrayBuffer(val) {
-  return toString.call(val) === '[object ArrayBuffer]';
-}
+var isArrayBuffer = kindOfTest('ArrayBuffer');
 
-/**
- * Determine if a value is a FormData
- *
- * @param {Object} val The value to test
- * @returns {boolean} True if value is an FormData, otherwise false
- */
-function isFormData(val) {
-  return toString.call(val) === '[object FormData]';
-}
 
 /**
  * Determine if a value is a view on an ArrayBuffer
@@ -10775,7 +11846,7 @@ function isObject(val) {
  * @return {boolean} True if value is a plain Object, otherwise false
  */
 function isPlainObject(val) {
-  if (toString.call(val) !== '[object Object]') {
+  if (kindOf(val) !== 'object') {
     return false;
   }
 
@@ -10786,32 +11857,38 @@ function isPlainObject(val) {
 /**
  * Determine if a value is a Date
  *
+ * @function
  * @param {Object} val The value to test
  * @returns {boolean} True if value is a Date, otherwise false
  */
-function isDate(val) {
-  return toString.call(val) === '[object Date]';
-}
+var isDate = kindOfTest('Date');
 
 /**
  * Determine if a value is a File
  *
+ * @function
  * @param {Object} val The value to test
  * @returns {boolean} True if value is a File, otherwise false
  */
-function isFile(val) {
-  return toString.call(val) === '[object File]';
-}
+var isFile = kindOfTest('File');
 
 /**
  * Determine if a value is a Blob
  *
+ * @function
  * @param {Object} val The value to test
  * @returns {boolean} True if value is a Blob, otherwise false
  */
-function isBlob(val) {
-  return toString.call(val) === '[object Blob]';
-}
+var isBlob = kindOfTest('Blob');
+
+/**
+ * Determine if a value is a FileList
+ *
+ * @function
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a File, otherwise false
+ */
+var isFileList = kindOfTest('FileList');
 
 /**
  * Determine if a value is a Function
@@ -10834,14 +11911,27 @@ function isStream(val) {
 }
 
 /**
- * Determine if a value is a URLSearchParams object
+ * Determine if a value is a FormData
  *
+ * @param {Object} thing The value to test
+ * @returns {boolean} True if value is an FormData, otherwise false
+ */
+function isFormData(thing) {
+  var pattern = '[object FormData]';
+  return thing && (
+    (typeof FormData === 'function' && thing instanceof FormData) ||
+    toString.call(thing) === pattern ||
+    (isFunction(thing.toString) && thing.toString() === pattern)
+  );
+}
+
+/**
+ * Determine if a value is a URLSearchParams object
+ * @function
  * @param {Object} val The value to test
  * @returns {boolean} True if value is a URLSearchParams object, otherwise false
  */
-function isURLSearchParams(val) {
-  return toString.call(val) === '[object URLSearchParams]';
-}
+var isURLSearchParams = kindOfTest('URLSearchParams');
 
 /**
  * Trim excess whitespace off the beginning and end of a string
@@ -10988,6 +12078,94 @@ function stripBOM(content) {
   return content;
 }
 
+/**
+ * Inherit the prototype methods from one constructor into another
+ * @param {function} constructor
+ * @param {function} superConstructor
+ * @param {object} [props]
+ * @param {object} [descriptors]
+ */
+
+function inherits(constructor, superConstructor, props, descriptors) {
+  constructor.prototype = Object.create(superConstructor.prototype, descriptors);
+  constructor.prototype.constructor = constructor;
+  props && Object.assign(constructor.prototype, props);
+}
+
+/**
+ * Resolve object with deep prototype chain to a flat object
+ * @param {Object} sourceObj source object
+ * @param {Object} [destObj]
+ * @param {Function} [filter]
+ * @returns {Object}
+ */
+
+function toFlatObject(sourceObj, destObj, filter) {
+  var props;
+  var i;
+  var prop;
+  var merged = {};
+
+  destObj = destObj || {};
+
+  do {
+    props = Object.getOwnPropertyNames(sourceObj);
+    i = props.length;
+    while (i-- > 0) {
+      prop = props[i];
+      if (!merged[prop]) {
+        destObj[prop] = sourceObj[prop];
+        merged[prop] = true;
+      }
+    }
+    sourceObj = Object.getPrototypeOf(sourceObj);
+  } while (sourceObj && (!filter || filter(sourceObj, destObj)) && sourceObj !== Object.prototype);
+
+  return destObj;
+}
+
+/*
+ * determines whether a string ends with the characters of a specified string
+ * @param {String} str
+ * @param {String} searchString
+ * @param {Number} [position= 0]
+ * @returns {boolean}
+ */
+function endsWith(str, searchString, position) {
+  str = String(str);
+  if (position === undefined || position > str.length) {
+    position = str.length;
+  }
+  position -= searchString.length;
+  var lastIndex = str.indexOf(searchString, position);
+  return lastIndex !== -1 && lastIndex === position;
+}
+
+
+/**
+ * Returns new array from array like object
+ * @param {*} [thing]
+ * @returns {Array}
+ */
+function toArray(thing) {
+  if (!thing) return null;
+  var i = thing.length;
+  if (isUndefined(i)) return null;
+  var arr = new Array(i);
+  while (i-- > 0) {
+    arr[i] = thing[i];
+  }
+  return arr;
+}
+
+// eslint-disable-next-line func-names
+var isTypedArray = (function(TypedArray) {
+  // eslint-disable-next-line func-names
+  return function(thing) {
+    return TypedArray && thing instanceof TypedArray;
+  };
+})(typeof Uint8Array !== 'undefined' && Object.getPrototypeOf(Uint8Array));
+
 module.exports = {
   isArray: isArray,
   isArrayBuffer: isArrayBuffer,
@@ -11010,7 +12188,15 @@ module.exports = {
   merge: merge,
   extend: extend,
   trim: trim,
-  stripBOM: stripBOM
+  stripBOM: stripBOM,
+  inherits: inherits,
+  toFlatObject: toFlatObject,
+  kindOf: kindOf,
+  kindOfTest: kindOfTest,
+  endsWith: endsWith,
+  toArray: toArray,
+  isTypedArray: isTypedArray,
+  isFileList: isFileList
 };
 
 
@@ -13295,21 +14481,26 @@ RedirectableRequest.prototype._performRequest = function () {
     this._options.agent = this._options.agents[scheme];
   }
 
-  // Create the native request
+  // Create the native request and set up its event handlers
   var request = this._currentRequest =
         nativeProtocol.request(this._options, this._onNativeResponse);
-  this._currentUrl = url.format(this._options);
-
-  // Set up event handlers
   request._redirectable = this;
-  for (var e = 0; e < events.length; e++) {
-    request.on(events[e], eventHandlers[events[e]]);
+  for (var event of events) {
+    request.on(event, eventHandlers[event]);
   }
+
+  // RFC7230§5.3.1: When making a request directly to an origin server, […]
+  // a client MUST send only the absolute path […] as the request-target.
+  this._currentUrl = /^\//.test(this._options.path) ?
+    url.format(this._options) :
+    // When making a request to a proxy, […]
+    // a client MUST send the target URI in absolute-form […].
+    this._currentUrl = this._options.path;
 
   // End a redirected request
   // (The first request must be ended explicitly with RedirectableRequest#end)
   if (this._isRedirect) {
-    // Write the request entity and end.
+    // Write the request entity and end
     var i = 0;
     var self = this;
     var buffers = this._requestBodyBuffers;
@@ -13597,8 +14788,8 @@ function createErrorType(code, defaultMessage) {
 }
 
 function abortRequest(request) {
-  for (var e = 0; e < events.length; e++) {
-    request.removeListener(events[e], eventHandlers[events[e]]);
+  for (var event of events) {
+    request.removeListener(event, eventHandlers[event]);
   }
   request.on("error", noop);
   request.abort();
@@ -24740,7 +25931,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SkynetClient = void 0;
 const axios_1 = __importDefault(__nccwpck_require__(6545));
-const skynet_mysky_utils_1 = __nccwpck_require__(4775);
+const skynet_mysky_utils_1 = __nccwpck_require__(4032);
 const upload_1 = __nccwpck_require__(1690);
 const download_1 = __nccwpck_require__(1764);
 // These imports are deprecated but they are needed to export the v1 File
@@ -24797,8 +25988,10 @@ class SkynetClient {
         this.getHnsresUrl = download_1.getHnsresUrl;
         this.getMetadata = download_1.getMetadata;
         this.getFileContent = download_1.getFileContent;
+        this.getFileContentBinary = download_1.getFileContentBinary;
         this.getFileContentRequest = download_1.getFileContentRequest;
         this.getFileContentHns = download_1.getFileContentHns;
+        this.getFileContentBinaryHns = download_1.getFileContentBinaryHns;
         this.openFile = download_1.openFile;
         this.openFileHns = download_1.openFileHns;
         this.resolveHns = download_1.resolveHns;
@@ -25174,7 +26367,7 @@ function genRandomSeed(length) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.resolveHns = exports.openFileHns = exports.openFile = exports.getFileContentHns = exports.getFileContentRequest = exports.getFileContent = exports.getMetadata = exports.getHnsresUrl = exports.getHnsUrl = exports.getSkylinkUrlForPortal = exports.getSkylinkUrl = exports.downloadFileHns = exports.downloadFile = exports.DEFAULT_DOWNLOAD_OPTIONS = void 0;
+exports.resolveHns = exports.openFileHns = exports.openFile = exports.getFileContentBinaryHns = exports.getFileContentHns = exports.getFileContentRequest = exports.getFileContentBinary = exports.getFileContent = exports.getMetadata = exports.getHnsresUrl = exports.getHnsUrl = exports.getSkylinkUrlForPortal = exports.getSkylinkUrl = exports.downloadFileHns = exports.downloadFile = exports.DEFAULT_DOWNLOAD_OPTIONS = void 0;
 const registry_1 = __nccwpck_require__(3113);
 const request_1 = __nccwpck_require__(8913);
 const format_1 = __nccwpck_require__(5163);
@@ -25250,7 +26443,7 @@ exports.downloadFileHns = downloadFileHns;
  * Constructs the full URL for the given skylink.
  *
  * @param this - SkynetClient
- * @param skylinkUrl - Skylink string. See `downloadFile`.
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
  * @param [customOptions] - Additional settings that can optionally be set.
  * @param [customOptions.endpointDownload="/"] - The relative URL path of the portal endpoint to contact.
  * @returns - The full URL for the skylink.
@@ -25267,7 +26460,7 @@ exports.getSkylinkUrl = getSkylinkUrl;
  * Gets the skylink URL without an initialized client.
  *
  * @param portalUrl - The portal URL.
- * @param skylinkUrl - Skylink string. See `downloadFile`.
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
  * @param [customOptions] - Additional settings that can optionally be set.
  * @param [customOptions.endpointDownload="/"] - The relative URL path of the portal endpoint.
  * @returns - The full URL for the skylink.
@@ -25374,7 +26567,7 @@ exports.getHnsresUrl = getHnsresUrl;
  * Gets only the metadata for the given skylink without the contents.
  *
  * @param this - SkynetClient
- * @param skylinkUrl - Skylink string. See `downloadFile`.
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
  * @param [customOptions] - Additional settings that can optionally be set. See `downloadFile` for the full list.
  * @param [customOptions.endpointGetMetadata="/"] - The relative URL path of the portal endpoint to contact.
  * @returns - The metadata in JSON format. Empty if no metadata was found.
@@ -25406,30 +26599,49 @@ async function getMetadata(skylinkUrl, customOptions) {
 }
 exports.getMetadata = getMetadata;
 /**
- * Gets the contents of the file at the given skylink.
+ * Gets the contents of the file at the given skylink. Note that this method will corrupt returned binary data, unless you set `customOptions.responseType` to `"arraybuffer"` or use the `getFileContentBinary` method.
  *
  * @param this - SkynetClient
- * @param skylinkUrl - Skylink string. See `downloadFile`.
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
  * @param [customOptions] - Additional settings that can optionally be set.
  * @param [customOptions.endpointDownload="/"] - The relative URL path of the portal endpoint to contact.
- * @returns - An object containing the data of the file, the content-type, portal URL, and the file's skylink. The type of the data returned depends on the content-type of the file. For JSON files the return type should be a JSON object, for other files it should be a string. In order to return a Uint8Array for binary files, the `responseType` option should be set to "arraybuffer".
+ * @returns - An object containing the data of the file, the content-type, portal URL, and the file's skylink. The type of the data returned depends on the content-type of the file. For JSON files the return type should be a JSON object, for other files it should be a string. In order to return an ArrayBuffer for binary files, the `responseType` option should be set to "arraybuffer".
  * @throws - Will throw if the skylinkUrl does not contain a skylink or if the path option is not a string.
  */
 async function getFileContent(skylinkUrl, customOptions) {
     // Validation is done in `getFileContentRequest`.
     const response = await this.getFileContentRequest(skylinkUrl, customOptions);
     const inputSkylink = (0, parse_1.parseSkylink)(skylinkUrl);
-    // `inputSkylink` cannot be null. `getSkylinkUrl` would have thrown on an
-    // invalid skylink.
+    // `inputSkylink` cannot be null.
+    (0, validation_1.validateSkylinkString)("inputSkylink", inputSkylink, "parsed skylink");
     validateGetFileContentResponse(response, inputSkylink);
     return await extractGetFileContentResponse(response);
 }
 exports.getFileContent = getFileContent;
 /**
+ * Gets the contents of the file at the given skylink as binary data.
+ *
+ * @param this - SkynetClient
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
+ * @param [customOptions] - Additional settings that can optionally be set.
+ * @param [customOptions.endpointDownload="/"] - The relative URL path of the portal endpoint to contact.
+ * @returns - An object containing the binary data of the file, the content-type, portal URL, and the file's skylink.
+ * @throws - Will throw if a responseType other than "arraybuffer" is requested, if the skylinkUrl does not contain a skylink or if the path option is not a string.
+ */
+async function getFileContentBinary(skylinkUrl, customOptions) {
+    // Validation is done in `getFileContent`.
+    validateGetFileContentBinaryOptions(customOptions);
+    // Set the expected response type so that we receive uncorrupted binary data.
+    customOptions = { ...customOptions, responseType: "arraybuffer" };
+    const response = await this.getFileContent(skylinkUrl, customOptions);
+    return { ...response, data: new Uint8Array(response.data) };
+}
+exports.getFileContentBinary = getFileContentBinary;
+/**
  * Makes the request to get the contents of the file at the given skylink.
  *
  * @param this - SkynetClient
- * @param skylinkUrl - Skylink string. See `downloadFile`.
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
  * @param [customOptions] - Additional settings that can optionally be set.
  * @param [customOptions.endpointDownload="/"] - The relative URL path of the portal endpoint to contact.
  * @returns - The get file content response.
@@ -25452,13 +26664,13 @@ async function getFileContentRequest(skylinkUrl, customOptions) {
 }
 exports.getFileContentRequest = getFileContentRequest;
 /**
- * Gets the contents of the file at the given Handshake domain.
+ * Gets the contents of the file at the given Handshake domain. Note that this method will corrupt returned binary data, unless you set `customOptions.responseType` to `"arraybuffer"` or use the `getFileContentBinaryHns` method.
  *
  * @param this - SkynetClient
  * @param domain - Handshake domain.
  * @param [customOptions] - Additional settings that can optionally be set.
  * @param [customOptions.endpointDownloadHns="/hns"] - The relative URL path of the portal endpoint to contact.
- * @returns - An object containing the data of the file, the content-type, portal URL, and the file's skylink.
+ * @returns - An object containing the data of the file, the content-type, portal URL, and the file's skylink. The type of the data returned depends on the content-type of the file. For JSON files the return type should be a JSON object, for other files it should be a string. In order to return an ArrayBuffer for binary files, the `responseType` option should be set to "arraybuffer".
  * @throws - Will throw if the domain does not contain a skylink.
  */
 async function getFileContentHns(domain, customOptions) {
@@ -25467,7 +26679,7 @@ async function getFileContentHns(domain, customOptions) {
     const url = await this.getHnsUrl(domain, opts);
     const headers = buildGetFileContentHeaders(opts.range);
     // GET request the data at the HNS domain and resolve the skylink in parallel.
-    const [response, { skylink: inputSkylink }] = await Promise.all([
+    const [response, { skylink }] = await Promise.all([
         this.executeRequest({
             ...opts,
             method: "get",
@@ -25478,15 +26690,37 @@ async function getFileContentHns(domain, customOptions) {
         }),
         this.resolveHns(domain),
     ]);
+    const inputSkylink = (0, parse_1.parseSkylink)(skylink);
+    // `inputSkylink` cannot be null.
+    (0, validation_1.validateSkylinkString)("inputSkylink", inputSkylink, "parsed skylink");
     validateGetFileContentResponse(response, inputSkylink);
     return await extractGetFileContentResponse(response);
 }
 exports.getFileContentHns = getFileContentHns;
 /**
+ * Gets the contents of the file at the given Handshake domain as binary data.
+ *
+ * @param this - SkynetClient
+ * @param domain - Handshake domain.
+ * @param [customOptions] - Additional settings that can optionally be set.
+ * @param [customOptions.endpointDownloadHns="/hns"] - The relative URL path of the portal endpoint to contact.
+ * @returns - An object containing the binary data of the file, the content-type, portal URL, and the file's skylink.
+ * @throws - Will throw if a responseType other than "arraybuffer" is requested, or if the domain does not contain a skylink.
+ */
+async function getFileContentBinaryHns(domain, customOptions) {
+    // Validation is done in `getFileContentHns`.
+    validateGetFileContentBinaryOptions(customOptions);
+    // Set the expected response type so that we receive uncorrupted binary data.
+    customOptions = { ...customOptions, responseType: "arraybuffer" };
+    const response = await this.getFileContentHns(domain, customOptions);
+    return { ...response, data: new Uint8Array(response.data) };
+}
+exports.getFileContentBinaryHns = getFileContentBinaryHns;
+/**
  * Opens the content of the skylink within the browser.
  *
  * @param this - SkynetClient
- * @param skylinkUrl - Skylink string. See `downloadFile`.
+ * @param skylinkUrl - Base64 skylink, or a valid URL that contains a skylink. See `downloadFile`.
  * @param [customOptions] - Additional settings that can optionally be set. See `downloadFile` for the full list.
  * @param [customOptions.endpointDownload="/"] - The relative URL path of the portal endpoint to contact.
  * @returns - The full URL that was used.
@@ -25583,7 +26817,7 @@ function buildQuery(download) {
     return query;
 }
 /**
- * Extracts the response from getFileContent.
+ * Extracts the response from `getFileContent`.
  *
  * @param response - The Axios response.
  * @returns - The extracted get file content response fields.
@@ -25595,7 +26829,19 @@ async function extractGetFileContentResponse(response) {
     return { data: response.data, contentType, portalUrl, skylink };
 }
 /**
- * Validates the response from getFileContent.
+ * Validates the options for `getFileContentBinary` and `getFileContentBinaryHns`.
+ *
+ * @param [customOptions={}] - Additional settings that can optionally be set.
+ * @throws - Will throw if a responseType other than "arraybuffer" is requested.
+ */
+function validateGetFileContentBinaryOptions(customOptions) {
+    const responseType = customOptions === null || customOptions === void 0 ? void 0 : customOptions.responseType;
+    if (responseType !== undefined && responseType !== "arraybuffer") {
+        throw new Error(`Unexpected 'responseType' option found for 'getFileContentBinary': '${responseType}'`);
+    }
+}
+/**
+ * Validates the response from `getFileContent`.
  *
  * @param response - The Axios response.
  * @param inputSkylink - The input skylink, required to validate the proof.
@@ -25717,7 +26963,7 @@ function validateRegistryProofResponse(inputSkylink, dataLink, proof) {
     }
     if ((0, sia_1.isSkylinkV1)(inputSkylink)) {
         if (inputSkylink !== dataLink) {
-            throw new Error("Expected returned skylink to be the same as input data link");
+            throw new Error(`Expected returned skylink ('${dataLink}') to be the same as input data link ('${inputSkylink}')`);
         }
         // If input skylink is not an entry link, no proof should be present.
         if (proof) {
@@ -25729,7 +26975,7 @@ function validateRegistryProofResponse(inputSkylink, dataLink, proof) {
     // Validation for input entry link.
     if (inputSkylink === dataLink) {
         // Input skylink is entry link and returned skylink is the same.
-        throw new Error("Expected returned skylink to be different from input entry link");
+        throw new Error(`Expected returned skylink ('${dataLink}') to be different from input entry link`);
     }
     (0, registry_1.validateRegistryProof)(proofArray, { resolverSkylink: inputSkylink, skylink: dataLink });
 }
@@ -25871,8 +27117,8 @@ exports.getJSONEncrypted = getJSONEncrypted;
 
 /* istanbul ignore file */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.defaultSkynetPortalUrl = exports.URI_SKYNET_PREFIX = exports.URI_HANDSHAKE_PREFIX = exports.getFullDomainUrlForPortal = exports.extractDomainForPortal = exports.DEFAULT_SKYNET_PORTAL_URL = exports.defaultPortalUrl = exports.uint8ArrayToStringUtf8 = exports.stringToUint8ArrayUtf8 = exports.MAX_REVISION = exports.getRootDirectory = exports.getRelativeFilePath = exports.isSkylinkV2 = exports.isSkylinkV1 = exports.parseSkylink = exports.convertSkylinkToBase64 = exports.convertSkylinkToBase32 = exports.getOrCreateSkyDBRegistryEntry = exports.DELETION_ENTRY_DATA = exports.ExecuteRequestError = exports.validateRegistryProof = exports.signEntry = exports.getEntryUrlForPortal = exports.getEntryLink = exports.deriveDiscoverableFileTweak = exports.deriveEncryptedFileSeed = exports.ENCRYPTION_PATH_SEED_FILE_LENGTH = exports.ENCRYPTION_PATH_SEED_DIRECTORY_LENGTH = exports.ENCRYPTED_JSON_RESPONSE_VERSION = exports.encryptJSONFile = exports.deriveEncryptedPathSeed = exports.deriveEncryptedFileTweak = exports.deriveEncryptedFileKeyEntropy = exports.decryptJSONFile = exports.mySkyDomain = exports.mySkyDevDomain = exports.MYSKY_DEV_DOMAIN = exports.MYSKY_DOMAIN = exports.MySky = exports.MAX_ENTRY_LENGTH = exports.DacLibrary = exports.getSkylinkUrlForPortal = exports.SIGNATURE_LENGTH = exports.PRIVATE_KEY_LENGTH = exports.PUBLIC_KEY_LENGTH = exports.genKeyPairFromSeed = exports.genKeyPairAndSeed = exports.deriveChildSeed = exports.HASH_LENGTH = exports.SkynetClient = void 0;
-exports.PermLegacySkyID = exports.PermDiscoverable = exports.PermHidden = exports.PermWrite = exports.PermRead = exports.PermType = exports.PermCategory = exports.Permission = exports.uriSkynetPrefix = exports.uriHandshakePrefix = void 0;
+exports.URI_SKYNET_PREFIX = exports.URI_HANDSHAKE_PREFIX = exports.getFullDomainUrlForPortal = exports.extractDomainForPortal = exports.DEFAULT_SKYNET_PORTAL_URL = exports.defaultPortalUrl = exports.uint8ArrayToStringUtf8 = exports.stringToUint8ArrayUtf8 = exports.MAX_REVISION = exports.getRootDirectory = exports.getRelativeFilePath = exports.TUS_CHUNK_SIZE = exports.isSkylinkV2 = exports.isSkylinkV1 = exports.parseSkylink = exports.convertSkylinkToBase64 = exports.convertSkylinkToBase32 = exports.getOrCreateSkyDBRegistryEntry = exports.DELETION_ENTRY_DATA = exports.ExecuteRequestError = exports.validateRegistryProof = exports.signEntry = exports.getEntryUrlForPortal = exports.getEntryLink = exports.deriveDiscoverableFileTweak = exports.deriveEncryptedFileSeed = exports.ENCRYPTION_PATH_SEED_FILE_LENGTH = exports.ENCRYPTION_PATH_SEED_DIRECTORY_LENGTH = exports.ENCRYPTED_JSON_RESPONSE_VERSION = exports.encryptJSONFile = exports.deriveEncryptedPathSeed = exports.deriveEncryptedFileTweak = exports.deriveEncryptedFileKeyEntropy = exports.decryptJSONFile = exports.mySkyDomain = exports.mySkyDevDomain = exports.MYSKY_DEV_DOMAIN = exports.MYSKY_DOMAIN = exports.MySky = exports.MAX_ENTRY_LENGTH = exports.DacLibrary = exports.getSkylinkUrlForPortal = exports.SIGNATURE_LENGTH = exports.PRIVATE_KEY_LENGTH = exports.PUBLIC_KEY_LENGTH = exports.genKeyPairFromSeed = exports.genKeyPairAndSeed = exports.deriveChildSeed = exports.HASH_LENGTH = exports.SkynetClient = void 0;
+exports.PermLegacySkyID = exports.PermDiscoverable = exports.PermHidden = exports.PermWrite = exports.PermRead = exports.PermType = exports.PermCategory = exports.Permission = exports.uriSkynetPrefix = exports.uriHandshakePrefix = exports.defaultSkynetPortalUrl = void 0;
 // Main exports.
 var client_1 = __nccwpck_require__(9462);
 Object.defineProperty(exports, "SkynetClient", ({ enumerable: true, get: function () { return client_1.SkynetClient; } }));
@@ -25928,6 +27174,8 @@ Object.defineProperty(exports, "parseSkylink", ({ enumerable: true, get: functio
 var sia_1 = __nccwpck_require__(1886);
 Object.defineProperty(exports, "isSkylinkV1", ({ enumerable: true, get: function () { return sia_1.isSkylinkV1; } }));
 Object.defineProperty(exports, "isSkylinkV2", ({ enumerable: true, get: function () { return sia_1.isSkylinkV2; } }));
+var upload_1 = __nccwpck_require__(1690);
+Object.defineProperty(exports, "TUS_CHUNK_SIZE", ({ enumerable: true, get: function () { return upload_1.TUS_CHUNK_SIZE; } }));
 var file_1 = __nccwpck_require__(1210);
 Object.defineProperty(exports, "getRelativeFilePath", ({ enumerable: true, get: function () { return file_1.getRelativeFilePath; } }));
 Object.defineProperty(exports, "getRootDirectory", ({ enumerable: true, get: function () { return file_1.getRootDirectory; } }));
@@ -25948,7 +27196,7 @@ Object.defineProperty(exports, "defaultSkynetPortalUrl", ({ enumerable: true, ge
 Object.defineProperty(exports, "uriHandshakePrefix", ({ enumerable: true, get: function () { return url_1.uriHandshakePrefix; } }));
 Object.defineProperty(exports, "uriSkynetPrefix", ({ enumerable: true, get: function () { return url_1.uriSkynetPrefix; } }));
 // Re-export Permission API.
-var skynet_mysky_utils_1 = __nccwpck_require__(4775);
+var skynet_mysky_utils_1 = __nccwpck_require__(4032);
 Object.defineProperty(exports, "Permission", ({ enumerable: true, get: function () { return skynet_mysky_utils_1.Permission; } }));
 Object.defineProperty(exports, "PermCategory", ({ enumerable: true, get: function () { return skynet_mysky_utils_1.PermCategory; } }));
 Object.defineProperty(exports, "PermType", ({ enumerable: true, get: function () { return skynet_mysky_utils_1.PermType; } }));
@@ -25970,7 +27218,7 @@ Object.defineProperty(exports, "PermLegacySkyID", ({ enumerable: true, get: func
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Connector = exports.DEFAULT_CONNECTOR_OPTIONS = void 0;
 const post_me_1 = __nccwpck_require__(8449);
-const skynet_mysky_utils_1 = __nccwpck_require__(4775);
+const skynet_mysky_utils_1 = __nccwpck_require__(4032);
 const url_1 = __nccwpck_require__(8630);
 exports.DEFAULT_CONNECTOR_OPTIONS = {
     dev: false,
@@ -26113,7 +27361,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.encodeEncryptedFileMetadata = exports.checkPaddedBlock = exports.padFileSize = exports.deriveEncryptedPathSeed = exports.deriveEncryptedFileSeed = exports.deriveEncryptedFileTweak = exports.deriveEncryptedFileKeyEntropy = exports.encryptJSONFile = exports.decryptJSONFile = exports.ENCRYPTION_PATH_SEED_FILE_LENGTH = exports.ENCRYPTION_PATH_SEED_DIRECTORY_LENGTH = exports.ENCRYPTION_NONCE_LENGTH = exports.ENCRYPTION_HIDDEN_FIELD_METADATA_LENGTH = exports.ENCRYPTION_KEY_LENGTH = exports.ENCRYPTED_JSON_RESPONSE_VERSION = void 0;
 const randombytes_1 = __importDefault(__nccwpck_require__(5711));
-const skynet_mysky_utils_1 = __nccwpck_require__(4775);
+const skynet_mysky_utils_1 = __nccwpck_require__(4032);
 const tweetnacl_1 = __nccwpck_require__(8729);
 const crypto_1 = __nccwpck_require__(6588);
 const string_1 = __nccwpck_require__(1929);
@@ -26467,7 +27715,7 @@ exports.MySky = exports.loadMySky = exports.MAX_ENTRY_LENGTH = exports.MYSKY_ALP
 var dac_1 = __nccwpck_require__(3341);
 Object.defineProperty(exports, "DacLibrary", ({ enumerable: true, get: function () { return dac_1.DacLibrary; } }));
 const post_me_1 = __nccwpck_require__(8449);
-const skynet_mysky_utils_1 = __nccwpck_require__(4775);
+const skynet_mysky_utils_1 = __nccwpck_require__(4032);
 const connector_1 = __nccwpck_require__(8518);
 const client_1 = __nccwpck_require__(9462);
 const utils_1 = __nccwpck_require__(31);
@@ -27942,7 +29190,7 @@ exports.DEFAULT_PIN_OPTIONS = {
  * Re-pins the given skylink.
  *
  * @param this - SkynetClient
- * @param skylinkUrl - 46-character skylink, or a valid skylink URL.
+ * @param skylinkUrl - 46-character base64 skylink, or a valid URL that contains a skylink.
  * @param [customOptions] - Additional settings that can optionally be set.
  * @returns - The returned JSON and revision number.
  * @throws - Will throw if the returned signature does not match the returned entry, or if the skylink in the entry is invalid.
@@ -28570,7 +29818,9 @@ class ExecuteRequestError extends Error {
      * @param err - The Axios error.
      * @returns - A new error if the error response is malformed, or the skyd error message otherwise.
      */
-    static From(err) {
+    static From(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    err) {
         /* istanbul ignore next */
         if (!err.response) {
             return new ExecuteRequestError(`Error response did not contain expected field 'response'.`, err, null, null);
@@ -30137,8 +31387,8 @@ function deriveRegistryEntryID(pubKey, tweak) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.splitSizeIntoChunkAlignedParts = exports.uploadDirectoryRequest = exports.uploadDirectory = exports.uploadLargeFileRequest = exports.uploadLargeFile = exports.uploadSmallFileRequest = exports.uploadSmallFile = exports.uploadFile = exports.DEFAULT_UPLOAD_OPTIONS = void 0;
-const tus_js_client_1 = __nccwpck_require__(195);
+exports.splitSizeIntoChunkAlignedParts = exports.uploadDirectoryRequest = exports.uploadDirectory = exports.uploadLargeFileRequest = exports.uploadLargeFile = exports.uploadSmallFileRequest = exports.uploadSmallFile = exports.uploadFile = exports.DEFAULT_UPLOAD_OPTIONS = exports.TUS_CHUNK_SIZE = void 0;
+const tus_js_client_1 = __nccwpck_require__(4107);
 const file_1 = __nccwpck_require__(1210);
 const options_1 = __nccwpck_require__(5545);
 const format_1 = __nccwpck_require__(5163);
@@ -30147,17 +31397,24 @@ const request_1 = __nccwpck_require__(8913);
 /**
  * The tus chunk size is (4MiB - encryptionOverhead) * dataPieces, set in skyd.
  */
-const TUS_CHUNK_SIZE = (1 << 22) * 10;
+exports.TUS_CHUNK_SIZE = (1 << 22) * 10;
 /**
- * A number indicating how many parts should be uploaded in parallel, by
- * default.
+ * Indicates what the default chunk size multiplier is.
  */
-const TUS_PARALLEL_UPLOADS = 2;
+const DEFAULT_TUS_CHUNK_SIZE_MULTIPLIER = 3;
+/**
+ * Indicates how many parts should be uploaded in parallel, by default.
+ */
+const DEFAULT_TUS_PARALLEL_UPLOADS = 2;
 /**
  * The retry delays, in ms. Data is stored in skyd for up to 20 minutes, so the
  * total delays should not exceed that length of time.
  */
 const DEFAULT_TUS_RETRY_DELAYS = [0, 5000, 15000, 60000, 300000, 600000];
+/**
+ * Indicates the default stagger percent between chunk uploads.
+ */
+const DEFAULT_TUS_STAGGER_PERCENT = 50;
 /**
  * The portal file field name.
  */
@@ -30170,10 +31427,12 @@ exports.DEFAULT_UPLOAD_OPTIONS = {
     ...options_1.DEFAULT_BASE_OPTIONS,
     endpointUpload: "/skynet/skyfile",
     endpointLargeUpload: "/skynet/tus",
+    chunkSizeMultiplier: DEFAULT_TUS_CHUNK_SIZE_MULTIPLIER,
     customFilename: "",
     errorPages: undefined,
-    largeFileSize: TUS_CHUNK_SIZE,
-    numParallelUploads: TUS_PARALLEL_UPLOADS,
+    largeFileSize: exports.TUS_CHUNK_SIZE,
+    numParallelUploads: DEFAULT_TUS_PARALLEL_UPLOADS,
+    staggerPercent: DEFAULT_TUS_STAGGER_PERCENT,
     retryDelays: DEFAULT_TUS_RETRY_DELAYS,
     tryFiles: undefined,
 };
@@ -30191,7 +31450,7 @@ exports.DEFAULT_UPLOAD_OPTIONS = {
 async function uploadFile(file, customOptions) {
     // Validation is done in `uploadSmallFileRequest` or `uploadLargeFileRequest`.
     const opts = { ...exports.DEFAULT_UPLOAD_OPTIONS, ...this.customOptions, ...customOptions };
-    if (file.size < opts.largeFileSize) {
+    if (file.size < opts.largeFileSize * opts.chunkSizeMultiplier) {
         return this.uploadSmallFile(file, opts);
     }
     else {
@@ -30281,10 +31540,24 @@ exports.uploadLargeFile = uploadLargeFile;
  * @returns - The upload response.
  */
 async function uploadLargeFileRequest(file, customOptions) {
-    var _a;
     validateFile("file", file, "parameter");
     (0, validation_1.validateOptionalObject)("customOptions", customOptions, "parameter", exports.DEFAULT_UPLOAD_OPTIONS);
     const opts = { ...exports.DEFAULT_UPLOAD_OPTIONS, ...this.customOptions, ...customOptions };
+    // Validation.
+    if (opts.staggerPercent !== undefined &&
+        opts.staggerPercent !== null &&
+        (opts.staggerPercent < 0 || opts.staggerPercent > 100)) {
+        throw new Error(`Expected 'staggerPercent' option to be between 0 and 100, was '${opts.staggerPercent}`);
+    }
+    if (opts.chunkSizeMultiplier < 1) {
+        (0, validation_1.throwValidationError)("opts.chunkSizeMultiplier", opts.chunkSizeMultiplier, "option", "greater than or equal to 1");
+    }
+    // It's crucial that we only use strict multiples of the base chunk size.
+    (0, validation_1.validateInteger)("opts.chunkSizeMultiplier", opts.chunkSizeMultiplier, "option");
+    if (opts.numParallelUploads < 1) {
+        (0, validation_1.throwValidationError)("opts.numParallelUploads", opts.numParallelUploads, "option", "greater than or equal to 1");
+    }
+    (0, validation_1.validateInteger)("opts.numParallelUploads", opts.numParallelUploads, "option");
     // TODO: Add back upload options once they are implemented in skyd.
     const url = await (0, request_1.buildRequestUrl)(this, { endpointPath: opts.endpointLargeUpload });
     const headers = (0, request_1.buildRequestHeaders)(undefined, opts.customUserAgent, opts.customCookie, opts.skynetApiKey);
@@ -30299,40 +31572,37 @@ async function uploadLargeFileRequest(file, customOptions) {
             // @ts-expect-error TS complains.
             opts.onUploadProgress(progress, { loaded: bytesSent, total: bytesTotal });
         };
-    // Make an OPTIONS request to find out whether parallel uploads are supported.
-    // TODO: Remove this once parallel uploads are fully supported and rolled-out.
-    const resp = await this.executeRequest({
-        ...opts,
-        endpointPath: opts.endpointLargeUpload,
-        method: "options",
-    });
-    // If concatenation is enabled, set the number of parallel uploads as well as
-    // the part-split function. Note that each part has to be chunk-aligned, so we
-    // may limit the number of parallel uploads.
-    let parallelUploads = 1;
-    let splitSizeIntoParts = undefined;
-    if ((_a = resp.headers["tus-extension"]) === null || _a === void 0 ? void 0 : _a.includes("concatenation")) {
-        // Use a user-provided value, if given.
-        parallelUploads = opts.numParallelUploads;
-        // Limit the number of parallel uploads if some parts would end up empty,
-        // e.g. 50mib would be split into 1 chunk-aligned part, one unaligned part,
-        // and one empty part.
-        if (parallelUploads > Math.ceil(file.size / TUS_CHUNK_SIZE)) {
-            parallelUploads = Math.ceil(file.size / TUS_CHUNK_SIZE);
-        }
-        // Set the part-split function.
-        splitSizeIntoParts = splitSizeIntoChunkAlignedParts;
+    // Set the number of parallel uploads as well as the part-split function. Note
+    // that each part has to be chunk-aligned, so we may limit the number of
+    // parallel uploads.
+    let parallelUploads = opts.numParallelUploads;
+    const chunkSize = exports.TUS_CHUNK_SIZE * opts.chunkSizeMultiplier;
+    // If we use `parallelUploads: 1` then these have to be set to null.
+    let splitSizeIntoParts = null;
+    let staggerPercent = null;
+    // Limit the number of parallel uploads if some parts would end up empty,
+    // e.g. 50mib would be split into 1 chunk-aligned part, one unaligned part,
+    // and one empty part.
+    const numChunks = Math.ceil(file.size / exports.TUS_CHUNK_SIZE);
+    if (parallelUploads > numChunks) {
+        parallelUploads = numChunks;
+    }
+    if (parallelUploads > 1) {
+        // Officially doing a parallel upload, set the parallel upload options.
+        splitSizeIntoParts = (totalSize, partCount) => splitSizeIntoChunkAlignedParts(totalSize, partCount, chunkSize);
+        staggerPercent = opts.staggerPercent;
     }
     return new Promise((resolve, reject) => {
         const tusOpts = {
             endpoint: url,
-            chunkSize: TUS_CHUNK_SIZE,
+            chunkSize,
             retryDelays: opts.retryDelays,
             metadata: {
                 filename,
                 filetype: file.type,
             },
             parallelUploads,
+            staggerPercent,
             splitSizeIntoParts,
             headers,
             onProgress,
@@ -30433,25 +31703,47 @@ exports.uploadDirectoryRequest = uploadDirectoryRequest;
  * Splits the size into the number of parts, aligning all but the last part on
  * chunk boundaries. Called if parallel uploads are used.
  *
+ * Constraints:
+ *
+ * - Each part must be chunk-aligned, except for the last part. So we put any
+ *   non-aligned leftover in the last part.
+ * - The parts should be as close in size to each other as possible.
+ *
  * @param totalSize - The total size of the upload.
  * @param partCount - The number of parts (equal to the value of `parallelUploads` used).
+ * @param chunkSize - The size of the chunk to use.
  * @returns - An array of parts with start and end boundaries.
  */
-function splitSizeIntoChunkAlignedParts(totalSize, partCount) {
+function splitSizeIntoChunkAlignedParts(totalSize, partCount, chunkSize) {
+    if (partCount < 1) {
+        (0, validation_1.throwValidationError)("partCount", partCount, "parameter", "greater than or equal to 1");
+    }
+    if (chunkSize < 1) {
+        (0, validation_1.throwValidationError)("chunkSize", chunkSize, "parameter", "greater than or equal to 1");
+    }
+    // NOTE: Unexpected code flow. `uploadLargeFileRequest` should not enable
+    // parallel uploads for this case.
+    if (totalSize <= chunkSize) {
+        (0, validation_1.throwValidationError)("totalSize", totalSize, "parameter", `greater than the size of a chunk ('${chunkSize}')`);
+    }
     const partSizes = new Array(partCount).fill(0);
-    // The leftover size that must go into the last part.
-    const leftover = totalSize % TUS_CHUNK_SIZE;
     // Assign chunks to parts in order, looping back to the beginning if we get to
     // the end of the parts array.
-    let lastPart = 0;
-    for (let i = 0; i < Math.floor(totalSize / TUS_CHUNK_SIZE); i++) {
-        partSizes[i % partCount] += TUS_CHUNK_SIZE;
-        if (i > lastPart)
-            lastPart = i;
+    const numFullChunks = Math.floor(totalSize / chunkSize);
+    for (let i = 0; i < numFullChunks; i++) {
+        partSizes[i % partCount] += chunkSize;
     }
-    // Assign the leftover to the part after the last part that was visited, or
-    // the last part in the array if all parts were used.
-    partSizes[Math.min(lastPart + 1, partCount - 1)] += leftover;
+    // The leftover size that must go into the last part.
+    const leftover = totalSize % chunkSize;
+    // If there is non-chunk-aligned leftover, add it.
+    if (leftover > 0) {
+        // Assign the leftover to the part after the last part that was visited, or
+        // the last part in the array if all parts were used.
+        //
+        // NOTE: We don't need to worry about empty parts, tus ignores those.
+        const lastIndex = Math.min(numFullChunks, partCount - 1);
+        partSizes[lastIndex] += leftover;
+    }
     // Convert sizes into parts.
     const parts = [];
     let lastBoundary = 0;
@@ -31035,7 +32327,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.extractDomainForPortal = exports.getFullDomainUrlForPortal = exports.makeUrl = exports.ensureUrlPrefix = exports.addUrlQuery = exports.addUrlSubdomain = exports.addPath = exports.defaultPortalUrl = exports.uriSkynetPrefix = exports.URI_SKYNET_PREFIX = exports.uriHandshakePrefix = exports.URI_HANDSHAKE_PREFIX = exports.defaultSkynetPortalUrl = exports.DEFAULT_SKYNET_PORTAL_URL = void 0;
-const skynet_mysky_utils_1 = __nccwpck_require__(4775);
+const skynet_mysky_utils_1 = __nccwpck_require__(4032);
 const url_join_1 = __importDefault(__nccwpck_require__(2821));
 const url_parse_1 = __importDefault(__nccwpck_require__(5682));
 const string_1 = __nccwpck_require__(1929);
@@ -31241,7 +32533,7 @@ exports.extractDomainForPortal = extractDomainForPortal;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.validationError = exports.throwValidationError = exports.validateUint8ArrayLen = exports.validateUint8Array = exports.validateHexString = exports.validateStringLen = exports.validateString = exports.validateSkylinkString = exports.validateNumber = exports.validateOptionalObject = exports.validateObject = exports.validateBoolean = exports.validateBigint = void 0;
+exports.validationError = exports.throwValidationError = exports.validateUint8ArrayLen = exports.validateUint8Array = exports.validateHexString = exports.validateStringLen = exports.validateString = exports.validateSkylinkString = exports.validateNumber = exports.validateOptionalObject = exports.validateObject = exports.validateInteger = exports.validateBoolean = exports.validateBigint = void 0;
 const parse_1 = __nccwpck_require__(7827);
 const string_1 = __nccwpck_require__(1929);
 /**
@@ -31272,6 +32564,21 @@ function validateBoolean(name, value, valueKind) {
     }
 }
 exports.validateBoolean = validateBoolean;
+/**
+ * Validates the given value as a integer.
+ *
+ * @param name - The name of the value.
+ * @param value - The actual value.
+ * @param valueKind - The kind of value that is being checked (e.g. "parameter", "response field", etc.)
+ * @throws - Will throw if not a valid integer.
+ */
+function validateInteger(name, value, valueKind) {
+    validateNumber(name, value, valueKind);
+    if (!Number.isInteger(value)) {
+        throwValidationError(name, value, valueKind, "an integer value");
+    }
+}
+exports.validateInteger = validateInteger;
 /**
  * Validates the given value as an object.
  *
@@ -31461,3308 +32768,7 @@ exports.validationError = validationError;
 
 /***/ }),
 
-/***/ 7479:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-function _typeof(obj) {
-  "@babel/helpers - typeof";
-
-  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
-    _typeof = function _typeof(obj) {
-      return typeof obj;
-    };
-  } else {
-    _typeof = function _typeof(obj) {
-      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-    };
-  }
-
-  return _typeof(obj);
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _inherits(subClass, superClass) {
-  if (typeof superClass !== "function" && superClass !== null) {
-    throw new TypeError("Super expression must either be null or a function");
-  }
-
-  subClass.prototype = Object.create(superClass && superClass.prototype, {
-    constructor: {
-      value: subClass,
-      writable: true,
-      configurable: true
-    }
-  });
-  if (superClass) _setPrototypeOf(subClass, superClass);
-}
-
-function _createSuper(Derived) {
-  var hasNativeReflectConstruct = _isNativeReflectConstruct();
-
-  return function _createSuperInternal() {
-    var Super = _getPrototypeOf(Derived),
-        result;
-
-    if (hasNativeReflectConstruct) {
-      var NewTarget = _getPrototypeOf(this).constructor;
-
-      result = Reflect.construct(Super, arguments, NewTarget);
-    } else {
-      result = Super.apply(this, arguments);
-    }
-
-    return _possibleConstructorReturn(this, result);
-  };
-}
-
-function _possibleConstructorReturn(self, call) {
-  if (call && (_typeof(call) === "object" || typeof call === "function")) {
-    return call;
-  }
-
-  return _assertThisInitialized(self);
-}
-
-function _assertThisInitialized(self) {
-  if (self === void 0) {
-    throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
-  }
-
-  return self;
-}
-
-function _wrapNativeSuper(Class) {
-  var _cache = typeof Map === "function" ? new Map() : undefined;
-
-  _wrapNativeSuper = function _wrapNativeSuper(Class) {
-    if (Class === null || !_isNativeFunction(Class)) return Class;
-
-    if (typeof Class !== "function") {
-      throw new TypeError("Super expression must either be null or a function");
-    }
-
-    if (typeof _cache !== "undefined") {
-      if (_cache.has(Class)) return _cache.get(Class);
-
-      _cache.set(Class, Wrapper);
-    }
-
-    function Wrapper() {
-      return _construct(Class, arguments, _getPrototypeOf(this).constructor);
-    }
-
-    Wrapper.prototype = Object.create(Class.prototype, {
-      constructor: {
-        value: Wrapper,
-        enumerable: false,
-        writable: true,
-        configurable: true
-      }
-    });
-    return _setPrototypeOf(Wrapper, Class);
-  };
-
-  return _wrapNativeSuper(Class);
-}
-
-function _construct(Parent, args, Class) {
-  if (_isNativeReflectConstruct()) {
-    _construct = Reflect.construct;
-  } else {
-    _construct = function _construct(Parent, args, Class) {
-      var a = [null];
-      a.push.apply(a, args);
-      var Constructor = Function.bind.apply(Parent, a);
-      var instance = new Constructor();
-      if (Class) _setPrototypeOf(instance, Class.prototype);
-      return instance;
-    };
-  }
-
-  return _construct.apply(null, arguments);
-}
-
-function _isNativeReflectConstruct() {
-  if (typeof Reflect === "undefined" || !Reflect.construct) return false;
-  if (Reflect.construct.sham) return false;
-  if (typeof Proxy === "function") return true;
-
-  try {
-    Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function _isNativeFunction(fn) {
-  return Function.toString.call(fn).indexOf("[native code]") !== -1;
-}
-
-function _setPrototypeOf(o, p) {
-  _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
-    o.__proto__ = p;
-    return o;
-  };
-
-  return _setPrototypeOf(o, p);
-}
-
-function _getPrototypeOf(o) {
-  _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
-    return o.__proto__ || Object.getPrototypeOf(o);
-  };
-  return _getPrototypeOf(o);
-}
-
-var DetailedError = /*#__PURE__*/function (_Error) {
-  _inherits(DetailedError, _Error);
-
-  var _super = _createSuper(DetailedError);
-
-  function DetailedError(message) {
-    var _this;
-
-    var causingErr = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-    var req = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
-    var res = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
-
-    _classCallCheck(this, DetailedError);
-
-    _this = _super.call(this, message);
-    _this.originalRequest = req;
-    _this.originalResponse = res;
-    _this.causingError = causingErr;
-
-    if (causingErr != null) {
-      message += ", caused by ".concat(causingErr.toString());
-    }
-
-    if (req != null) {
-      var requestId = req.getHeader('X-Request-ID') || 'n/a';
-      var method = req.getMethod();
-      var url = req.getURL();
-      var status = res ? res.getStatus() : 'n/a';
-      var body = res ? res.getBody() || '' : 'n/a';
-      message += ", originated from request (method: ".concat(method, ", url: ").concat(url, ", response code: ").concat(status, ", response text: ").concat(body, ", request id: ").concat(requestId, ")");
-    }
-
-    _this.message = message;
-    return _this;
-  }
-
-  return _createClass(DetailedError);
-}( /*#__PURE__*/_wrapNativeSuper(Error));
-
-var _default = DetailedError;
-exports["default"] = _default;
-
-/***/ }),
-
-/***/ 9990:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports.enableDebugLog = enableDebugLog;
-exports.log = log;
-
-/* eslint no-console: "off" */
-var isEnabled = false;
-
-function enableDebugLog() {
-  isEnabled = true;
-}
-
-function log(msg) {
-  if (!isEnabled) return;
-  console.log(msg);
-}
-
-/***/ }),
-
-/***/ 7905:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _fs = __nccwpck_require__(7147);
-
-var _isStream = _interopRequireDefault(__nccwpck_require__(1554));
-
-var _BufferSource = _interopRequireDefault(__nccwpck_require__(8458));
-
-var _FileSource = _interopRequireDefault(__nccwpck_require__(527));
-
-var _StreamSource = _interopRequireDefault(__nccwpck_require__(6914));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-var FileReader = /*#__PURE__*/function () {
-  function FileReader() {
-    _classCallCheck(this, FileReader);
-  }
-
-  _createClass(FileReader, [{
-    key: "openFile",
-    value: function openFile(input, chunkSize) {
-      if (Buffer.isBuffer(input)) {
-        return Promise.resolve(new _BufferSource.default(input));
-      }
-
-      if (input instanceof _fs.ReadStream && input.path != null) {
-        return Promise.resolve(new _FileSource.default(input));
-      }
-
-      if (_isStream.default.readable(input)) {
-        return Promise.resolve(new _StreamSource.default(input, chunkSize));
-      }
-
-      return Promise.reject(new Error('source object may only be an instance of Buffer or Readable in this environment'));
-    }
-  }]);
-
-  return FileReader;
-}();
-
-exports["default"] = FileReader;
-
-/***/ }),
-
-/***/ 3998:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = fingerprint;
-
-var fs = _interopRequireWildcard(__nccwpck_require__(7147));
-
-var path = _interopRequireWildcard(__nccwpck_require__(1017));
-
-var _crypto = __nccwpck_require__(6113);
-
-function _getRequireWildcardCache() { if (typeof WeakMap !== "function") return null; var cache = new WeakMap(); _getRequireWildcardCache = function () { return cache; }; return cache; }
-
-function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
-
-/**
- * Generate a fingerprint for a file which will be used the store the endpoint
- *
- * @param {File} file
- * @param {Object} options
- */
-function fingerprint(file, options) {
-  if (Buffer.isBuffer(file)) {
-    // create MD5 hash for buffer type
-    var blockSize = 64 * 1024; // 64kb
-
-    var content = file.slice(0, Math.min(blockSize, file.length));
-    var hash = (0, _crypto.createHash)('md5').update(content).digest('hex');
-
-    var _fingerprint = ['node-buffer', hash, file.length, options.endpoint].join('-');
-
-    return Promise.resolve(_fingerprint);
-  }
-
-  if (file instanceof fs.ReadStream && file.path != null) {
-    return new Promise(function (resolve, reject) {
-      var name = path.resolve(file.path);
-      fs.stat(file.path, function (err, info) {
-        if (err) {
-          return reject(err);
-        }
-
-        var fingerprint = ['node-file', name, info.size, info.mtime.getTime(), options.endpoint].join('-');
-        resolve(fingerprint);
-      });
-    });
-  } // fingerprint cannot be computed for file input type
-
-
-  return Promise.resolve(null);
-}
-
-/***/ }),
-
-/***/ 7476:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var http = _interopRequireWildcard(__nccwpck_require__(3685));
-
-var https = _interopRequireWildcard(__nccwpck_require__(5687));
-
-var _url = __nccwpck_require__(7310);
-
-var _stream = __nccwpck_require__(2781);
-
-var _lodash = _interopRequireDefault(__nccwpck_require__(2038));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _getRequireWildcardCache() { if (typeof WeakMap !== "function") return null; var cache = new WeakMap(); _getRequireWildcardCache = function () { return cache; }; return cache; }
-
-function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
-
-function _typeof(obj) {
-  "@babel/helpers - typeof";
-
-  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
-    _typeof = function _typeof(obj) {
-      return typeof obj;
-    };
-  } else {
-    _typeof = function _typeof(obj) {
-      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-    };
-  }
-
-  return _typeof(obj);
-}
-
-function _inherits(subClass, superClass) {
-  if (typeof superClass !== "function" && superClass !== null) {
-    throw new TypeError("Super expression must either be null or a function");
-  }
-
-  subClass.prototype = Object.create(superClass && superClass.prototype, {
-    constructor: {
-      value: subClass,
-      writable: true,
-      configurable: true
-    }
-  });
-  if (superClass) _setPrototypeOf(subClass, superClass);
-}
-
-function _setPrototypeOf(o, p) {
-  _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
-    o.__proto__ = p;
-    return o;
-  };
-
-  return _setPrototypeOf(o, p);
-}
-
-function _createSuper(Derived) {
-  var hasNativeReflectConstruct = _isNativeReflectConstruct();
-
-  return function _createSuperInternal() {
-    var Super = _getPrototypeOf(Derived),
-        result;
-
-    if (hasNativeReflectConstruct) {
-      var NewTarget = _getPrototypeOf(this).constructor;
-
-      result = Reflect.construct(Super, arguments, NewTarget);
-    } else {
-      result = Super.apply(this, arguments);
-    }
-
-    return _possibleConstructorReturn(this, result);
-  };
-}
-
-function _possibleConstructorReturn(self, call) {
-  if (call && (_typeof(call) === "object" || typeof call === "function")) {
-    return call;
-  }
-
-  return _assertThisInitialized(self);
-}
-
-function _assertThisInitialized(self) {
-  if (self === void 0) {
-    throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
-  }
-
-  return self;
-}
-
-function _isNativeReflectConstruct() {
-  if (typeof Reflect === "undefined" || !Reflect.construct) return false;
-  if (Reflect.construct.sham) return false;
-  if (typeof Proxy === "function") return true;
-
-  try {
-    Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function _getPrototypeOf(o) {
-  _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
-    return o.__proto__ || Object.getPrototypeOf(o);
-  };
-  return _getPrototypeOf(o);
-}
-
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
-
-  if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    if (enumerableOnly) symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    });
-    keys.push.apply(keys, symbols);
-  }
-
-  return keys;
-}
-
-function _objectSpread(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = arguments[i] != null ? arguments[i] : {};
-
-    if (i % 2) {
-      ownKeys(Object(source), true).forEach(function (key) {
-        _defineProperty(target, key, source[key]);
-      });
-    } else if (Object.getOwnPropertyDescriptors) {
-      Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
-    } else {
-      ownKeys(Object(source)).forEach(function (key) {
-        Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
-      });
-    }
-  }
-
-  return target;
-}
-
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-
-  return obj;
-}
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-/* eslint-disable max-classes-per-file */
-
-
-var NodeHttpStack = /*#__PURE__*/function () {
-  function NodeHttpStack() {
-    var requestOptions = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-
-    _classCallCheck(this, NodeHttpStack);
-
-    this._requestOptions = requestOptions;
-  }
-
-  _createClass(NodeHttpStack, [{
-    key: "createRequest",
-    value: function createRequest(method, url) {
-      return new Request(method, url, this._requestOptions);
-    }
-  }, {
-    key: "getName",
-    value: function getName() {
-      return 'NodeHttpStack';
-    }
-  }]);
-
-  return NodeHttpStack;
-}();
-
-exports["default"] = NodeHttpStack;
-
-var Request = /*#__PURE__*/function () {
-  function Request(method, url, options) {
-    _classCallCheck(this, Request);
-
-    this._method = method;
-    this._url = url;
-    this._headers = {};
-    this._request = null;
-
-    this._progressHandler = function () {};
-
-    this._requestOptions = options || {};
-  }
-
-  _createClass(Request, [{
-    key: "getMethod",
-    value: function getMethod() {
-      return this._method;
-    }
-  }, {
-    key: "getURL",
-    value: function getURL() {
-      return this._url;
-    }
-  }, {
-    key: "setHeader",
-    value: function setHeader(header, value) {
-      this._headers[header] = value;
-    }
-  }, {
-    key: "getHeader",
-    value: function getHeader(header) {
-      return this._headers[header];
-    }
-  }, {
-    key: "setProgressHandler",
-    value: function setProgressHandler(progressHandler) {
-      this._progressHandler = progressHandler;
-    }
-  }, {
-    key: "send",
-    value: function send() {
-      var _this = this;
-
-      var body = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
-      return new Promise(function (resolve, reject) {
-        var options = _objectSpread(_objectSpread(_objectSpread({}, (0, _url.parse)(_this._url)), _this._requestOptions), {}, {
-          method: _this._method,
-          headers: _objectSpread(_objectSpread({}, _this._requestOptions.headers || {}), _this._headers)
-        });
-
-        if (body && body.size) {
-          options.headers['Content-Length'] = body.size;
-        }
-
-        var httpModule = options.protocol === 'https:' ? https : http;
-        var req = _this._request = httpModule.request(options);
-        req.on('response', function (res) {
-          var resChunks = [];
-          res.on('data', function (data) {
-            resChunks.push(data);
-          });
-          res.on('end', function () {
-            var responseText = Buffer.concat(resChunks).toString('utf8');
-            resolve(new Response(res, responseText));
-          });
-        });
-        req.on('error', function (err) {
-          reject(err);
-        });
-
-        if (body instanceof _stream.Readable) {
-          body.pipe(new ProgressEmitter(_this._progressHandler)).pipe(req);
-        } else {
-          req.end(body);
-        }
-      });
-    }
-  }, {
-    key: "abort",
-    value: function abort() {
-      if (this._request !== null) this._request.abort();
-      return Promise.resolve();
-    }
-  }, {
-    key: "getUnderlyingObject",
-    value: function getUnderlyingObject() {
-      return this._request;
-    }
-  }]);
-
-  return Request;
-}();
-
-var Response = /*#__PURE__*/function () {
-  function Response(res, body) {
-    _classCallCheck(this, Response);
-
-    this._response = res;
-    this._body = body;
-  }
-
-  _createClass(Response, [{
-    key: "getStatus",
-    value: function getStatus() {
-      return this._response.statusCode;
-    }
-  }, {
-    key: "getHeader",
-    value: function getHeader(header) {
-      return this._response.headers[header.toLowerCase()];
-    }
-  }, {
-    key: "getBody",
-    value: function getBody() {
-      return this._body;
-    }
-  }, {
-    key: "getUnderlyingObject",
-    value: function getUnderlyingObject() {
-      return this._response;
-    }
-  }]);
-
-  return Response;
-}(); // ProgressEmitter is a simple PassThrough-style transform stream which keeps
-// track of the number of bytes which have been piped through it and will
-// invoke the `onprogress` function whenever new number are available.
-
-
-var ProgressEmitter = /*#__PURE__*/function (_Transform) {
-  _inherits(ProgressEmitter, _Transform);
-
-  var _super = _createSuper(ProgressEmitter);
-
-  function ProgressEmitter(onprogress) {
-    var _this2;
-
-    _classCallCheck(this, ProgressEmitter);
-
-    _this2 = _super.call(this); // The _onprogress property will be invoked, whenever a chunk is piped
-    // through this transformer. Since chunks are usually quite small (64kb),
-    // these calls can occur frequently, especially when you have a good
-    // connection to the remote server. Therefore, we are throtteling them to
-    // prevent accessive function calls.
-
-    _this2._onprogress = (0, _lodash.default)(onprogress, 100, {
-      leading: true,
-      trailing: false
-    });
-    _this2._position = 0;
-    return _this2;
-  }
-
-  _createClass(ProgressEmitter, [{
-    key: "_transform",
-    value: function _transform(chunk, encoding, callback) {
-      this._position += chunk.length;
-
-      this._onprogress(this._position);
-
-      callback(null, chunk);
-    }
-  }]);
-
-  return ProgressEmitter;
-}(_stream.Transform);
-
-/***/ }),
-
-/***/ 195:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-Object.defineProperty(exports, "DetailedError", ({
-  enumerable: true,
-  get: function () {
-    return _error.default;
-  }
-}));
-Object.defineProperty(exports, "FileUrlStorage", ({
-  enumerable: true,
-  get: function () {
-    return _urlStorage.FileUrlStorage;
-  }
-}));
-Object.defineProperty(exports, "HttpStack", ({
-  enumerable: true,
-  get: function () {
-    return _httpStack.default;
-  }
-}));
-exports.Upload = void 0;
-Object.defineProperty(exports, "canStoreURLs", ({
-  enumerable: true,
-  get: function () {
-    return _urlStorage.canStoreURLs;
-  }
-}));
-exports.defaultOptions = void 0;
-Object.defineProperty(exports, "enableDebugLog", ({
-  enumerable: true,
-  get: function () {
-    return _logger.enableDebugLog;
-  }
-}));
-exports.isSupported = void 0;
-
-var _upload = _interopRequireDefault(__nccwpck_require__(9979));
-
-var _noopUrlStorage = _interopRequireDefault(__nccwpck_require__(4245));
-
-var _logger = __nccwpck_require__(9990);
-
-var _error = _interopRequireDefault(__nccwpck_require__(7479));
-
-var _urlStorage = __nccwpck_require__(2187);
-
-var _httpStack = _interopRequireDefault(__nccwpck_require__(7476));
-
-var _fileReader = _interopRequireDefault(__nccwpck_require__(7905));
-
-var _fingerprint = _interopRequireDefault(__nccwpck_require__(3998));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _typeof(obj) {
-  "@babel/helpers - typeof";
-
-  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
-    _typeof = function _typeof(obj) {
-      return typeof obj;
-    };
-  } else {
-    _typeof = function _typeof(obj) {
-      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-    };
-  }
-
-  return _typeof(obj);
-}
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-function _inherits(subClass, superClass) {
-  if (typeof superClass !== "function" && superClass !== null) {
-    throw new TypeError("Super expression must either be null or a function");
-  }
-
-  subClass.prototype = Object.create(superClass && superClass.prototype, {
-    constructor: {
-      value: subClass,
-      writable: true,
-      configurable: true
-    }
-  });
-  if (superClass) _setPrototypeOf(subClass, superClass);
-}
-
-function _setPrototypeOf(o, p) {
-  _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
-    o.__proto__ = p;
-    return o;
-  };
-
-  return _setPrototypeOf(o, p);
-}
-
-function _createSuper(Derived) {
-  var hasNativeReflectConstruct = _isNativeReflectConstruct();
-
-  return function _createSuperInternal() {
-    var Super = _getPrototypeOf(Derived),
-        result;
-
-    if (hasNativeReflectConstruct) {
-      var NewTarget = _getPrototypeOf(this).constructor;
-
-      result = Reflect.construct(Super, arguments, NewTarget);
-    } else {
-      result = Super.apply(this, arguments);
-    }
-
-    return _possibleConstructorReturn(this, result);
-  };
-}
-
-function _possibleConstructorReturn(self, call) {
-  if (call && (_typeof(call) === "object" || typeof call === "function")) {
-    return call;
-  }
-
-  return _assertThisInitialized(self);
-}
-
-function _assertThisInitialized(self) {
-  if (self === void 0) {
-    throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
-  }
-
-  return self;
-}
-
-function _isNativeReflectConstruct() {
-  if (typeof Reflect === "undefined" || !Reflect.construct) return false;
-  if (Reflect.construct.sham) return false;
-  if (typeof Proxy === "function") return true;
-
-  try {
-    Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function _getPrototypeOf(o) {
-  _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
-    return o.__proto__ || Object.getPrototypeOf(o);
-  };
-  return _getPrototypeOf(o);
-}
-
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
-
-  if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    if (enumerableOnly) symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    });
-    keys.push.apply(keys, symbols);
-  }
-
-  return keys;
-}
-
-function _objectSpread(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = arguments[i] != null ? arguments[i] : {};
-
-    if (i % 2) {
-      ownKeys(Object(source), true).forEach(function (key) {
-        _defineProperty(target, key, source[key]);
-      });
-    } else if (Object.getOwnPropertyDescriptors) {
-      Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
-    } else {
-      ownKeys(Object(source)).forEach(function (key) {
-        Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
-      });
-    }
-  }
-
-  return target;
-}
-
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-
-  return obj;
-}
-
-var defaultOptions = _objectSpread(_objectSpread({}, _upload.default.defaultOptions), {}, {
-  httpStack: new _httpStack.default(),
-  fileReader: new _fileReader.default(),
-  urlStorage: new _noopUrlStorage.default(),
-  fingerprint: _fingerprint.default
-});
-
-exports.defaultOptions = defaultOptions;
-
-var Upload = /*#__PURE__*/function (_BaseUpload) {
-  _inherits(Upload, _BaseUpload);
-
-  var _super = _createSuper(Upload);
-
-  function Upload() {
-    var file = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
-    var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-
-    _classCallCheck(this, Upload);
-
-    options = _objectSpread(_objectSpread({}, defaultOptions), options);
-    return _super.call(this, file, options);
-  }
-
-  _createClass(Upload, null, [{
-    key: "terminate",
-    value: function terminate(url, options, cb) {
-      options = _objectSpread(_objectSpread({}, defaultOptions), options);
-      return _upload.default.terminate(url, options, cb);
-    }
-  }]);
-
-  return Upload;
-}(_upload.default); // The Node.js environment does not have restrictions which may cause
-// tus-js-client not to function.
-
-
-exports.Upload = Upload;
-var isSupported = true; // The usage of the commonjs exporting syntax instead of the new ECMAScript
-// one is actually inteded and prevents weird behaviour if we are trying to
-// import this module in another module using Babel.
-
-exports.isSupported = isSupported;
-
-/***/ }),
-
-/***/ 8458:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-var BufferSource = /*#__PURE__*/function () {
-  function BufferSource(buffer) {
-    _classCallCheck(this, BufferSource);
-
-    this._buffer = buffer;
-    this.size = buffer.length;
-  }
-
-  _createClass(BufferSource, [{
-    key: "slice",
-    value: function slice(start, end) {
-      var value = this._buffer.slice(start, end);
-
-      value.size = value.length;
-      return Promise.resolve({
-        value: value
-      });
-    }
-  }, {
-    key: "close",
-    value: function close() {}
-  }]);
-
-  return BufferSource;
-}();
-
-exports["default"] = BufferSource;
-
-/***/ }),
-
-/***/ 527:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _fs = __nccwpck_require__(7147);
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-var FileSource = /*#__PURE__*/function () {
-  function FileSource(stream) {
-    _classCallCheck(this, FileSource);
-
-    this._stream = stream;
-    this._path = stream.path.toString();
-  }
-
-  _createClass(FileSource, [{
-    key: "slice",
-    value: function slice(start, end) {
-      var stream = (0, _fs.createReadStream)(this._path, {
-        start: start,
-        // The `end` option for createReadStream is treated inclusively
-        // (see https://nodejs.org/api/fs.html#fs_fs_createreadstream_path_options).
-        // However, the Buffer#slice(start, end) and also our Source#slice(start, end)
-        // method treat the end range exclusively, so we have to subtract 1.
-        // This prevents an off-by-one error when reporting upload progress.
-        end: end - 1,
-        autoClose: true
-      });
-      stream.size = end - start;
-      return Promise.resolve({
-        value: stream
-      });
-    }
-  }, {
-    key: "close",
-    value: function close() {
-      this._stream.destroy();
-    }
-  }]);
-
-  return FileSource;
-}();
-
-exports["default"] = FileSource;
-
-/***/ }),
-
-/***/ 1470:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _stream = __nccwpck_require__(2781);
-
-function _typeof(obj) {
-  "@babel/helpers - typeof";
-
-  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
-    _typeof = function _typeof(obj) {
-      return typeof obj;
-    };
-  } else {
-    _typeof = function _typeof(obj) {
-      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-    };
-  }
-
-  return _typeof(obj);
-}
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-function _inherits(subClass, superClass) {
-  if (typeof superClass !== "function" && superClass !== null) {
-    throw new TypeError("Super expression must either be null or a function");
-  }
-
-  subClass.prototype = Object.create(superClass && superClass.prototype, {
-    constructor: {
-      value: subClass,
-      writable: true,
-      configurable: true
-    }
-  });
-  if (superClass) _setPrototypeOf(subClass, superClass);
-}
-
-function _setPrototypeOf(o, p) {
-  _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
-    o.__proto__ = p;
-    return o;
-  };
-
-  return _setPrototypeOf(o, p);
-}
-
-function _createSuper(Derived) {
-  var hasNativeReflectConstruct = _isNativeReflectConstruct();
-
-  return function _createSuperInternal() {
-    var Super = _getPrototypeOf(Derived),
-        result;
-
-    if (hasNativeReflectConstruct) {
-      var NewTarget = _getPrototypeOf(this).constructor;
-
-      result = Reflect.construct(Super, arguments, NewTarget);
-    } else {
-      result = Super.apply(this, arguments);
-    }
-
-    return _possibleConstructorReturn(this, result);
-  };
-}
-
-function _possibleConstructorReturn(self, call) {
-  if (call && (_typeof(call) === "object" || typeof call === "function")) {
-    return call;
-  }
-
-  return _assertThisInitialized(self);
-}
-
-function _assertThisInitialized(self) {
-  if (self === void 0) {
-    throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
-  }
-
-  return self;
-}
-
-function _isNativeReflectConstruct() {
-  if (typeof Reflect === "undefined" || !Reflect.construct) return false;
-  if (Reflect.construct.sham) return false;
-  if (typeof Proxy === "function") return true;
-
-  try {
-    Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function _getPrototypeOf(o) {
-  _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
-    return o.__proto__ || Object.getPrototypeOf(o);
-  };
-  return _getPrototypeOf(o);
-}
-
-var SlicingStream = /*#__PURE__*/function (_Transform) {
-  _inherits(SlicingStream, _Transform);
-
-  var _super = _createSuper(SlicingStream);
-
-  function SlicingStream(bytesToSkip, bytesToRead, source) {
-    var _this;
-
-    _classCallCheck(this, SlicingStream);
-
-    _this = _super.call(this); // The number of bytes we have to discard before we start emitting data.
-
-    _this._bytesToSkip = bytesToSkip; // The number of bytes we will emit in the data events before ending this stream.
-
-    _this._bytesToRead = bytesToRead; // Points to the StreamSource object which created this SlicingStream.
-    // This reference is used for manipulating the _bufLen and _buf properties
-    // directly.
-
-    _this._source = source;
-    return _this;
-  }
-
-  _createClass(SlicingStream, [{
-    key: "_transform",
-    value: function _transform(chunk, encoding, callback) {
-      // Calculate the number of bytes we still have to skip before we can emit data.
-      var bytesSkipped = Math.min(this._bytesToSkip, chunk.length);
-      this._bytesToSkip -= bytesSkipped; // Calculate the number of bytes we can emit after we skipped enough data.
-
-      var bytesAvailable = chunk.length - bytesSkipped; // If no bytes are available, because the entire chunk was skipped, we can
-      // return earily.
-
-      if (bytesAvailable === 0) {
-        callback(null);
-        return;
-      }
-
-      var bytesToRead = Math.min(this._bytesToRead, bytesAvailable);
-      this._bytesToRead -= bytesToRead;
-
-      if (bytesToRead !== 0) {
-        var data = chunk.slice(bytesSkipped, bytesSkipped + bytesToRead);
-        this._source._bufLen += data.copy(this._source._buf, this._source._bufLen);
-        this.push(data);
-      } // If we do not have to read any more bytes for this transform stream, we
-      // end it and also unpipe our source, to avoid calls to _transform in the
-      // future
-
-
-      if (this._bytesToRead === 0) {
-        this._source._stream.unpipe(this);
-
-        this.end();
-      } // If we did not use all the available data, we return it to the source
-      // so the next SlicingStream can handle it.
-
-
-      if (bytesToRead !== bytesAvailable) {
-        var unusedChunk = chunk.slice(bytesSkipped + bytesToRead);
-
-        this._source._stream.unshift(unusedChunk);
-      }
-
-      callback(null);
-    }
-  }]);
-
-  return SlicingStream;
-}(_stream.Transform);
-
-exports["default"] = SlicingStream;
-
-/***/ }),
-
-/***/ 6914:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _SlicingStream = _interopRequireDefault(__nccwpck_require__(1470));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-var StreamSource = /*#__PURE__*/function () {
-  function StreamSource(stream, chunkSize) {
-    var _this = this;
-
-    _classCallCheck(this, StreamSource); // Ensure that chunkSize is an integer and not something else or Infinity.
-
-
-    chunkSize = +chunkSize;
-
-    if (!isFinite(chunkSize)) {
-      throw new Error('cannot create source for stream without a finite value for the `chunkSize` option');
-    }
-
-    this._stream = stream; // Setting the size to null indicates that we have no calculation available
-    // for how much data this stream will emit requiring the user to specify
-    // it manually (see the `uploadSize` option).
-
-    this.size = null;
-    stream.pause();
-    this._done = false;
-    stream.on('end', function () {
-      return _this._done = true;
-    });
-    this._buf = Buffer.alloc(chunkSize);
-    this._bufPos = null;
-    this._bufLen = 0;
-  }
-
-  _createClass(StreamSource, [{
-    key: "slice",
-    value: function slice(start, end) {
-      // Always attempt to drain the buffer first, even if this means that we
-      // return less data, then the caller requested.
-      if (start >= this._bufPos && start < this._bufPos + this._bufLen) {
-        var bufStart = start - this._bufPos;
-        var bufEnd = Math.min(this._bufLen, end - this._bufPos);
-
-        var buf = this._buf.slice(bufStart, bufEnd);
-
-        buf.size = buf.length;
-        return Promise.resolve({
-          value: buf
-        });
-      } // Fail fast if the caller requests a proportion of the data which is not
-      // available any more.
-
-
-      if (start < this._bufPos) {
-        return Promise.reject(new Error('cannot slice from position which we already seeked away'));
-      }
-
-      if (this._done) {
-        return Promise.resolve({
-          value: null,
-          done: this._done
-        });
-      }
-
-      var bytesToSkip = start - (this._bufPos + this._bufLen);
-      this._bufLen = 0;
-      this._bufPos = start;
-      var bytesToRead = end - start;
-      var slicingStream = new _SlicingStream.default(bytesToSkip, bytesToRead, this);
-
-      this._stream.pipe(slicingStream);
-
-      return Promise.resolve({
-        value: slicingStream
-      });
-    }
-  }, {
-    key: "close",
-    value: function close() {// not implemented
-    }
-  }]);
-
-  return StreamSource;
-}();
-
-exports["default"] = StreamSource;
-
-/***/ }),
-
-/***/ 2187:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports.canStoreURLs = exports.FileUrlStorage = void 0;
-
-var _fs = __nccwpck_require__(7147);
-
-var lockfile = _interopRequireWildcard(__nccwpck_require__(4582));
-
-var combineErrors = _interopRequireWildcard(__nccwpck_require__(871));
-
-function _getRequireWildcardCache() { if (typeof WeakMap !== "function") return null; var cache = new WeakMap(); _getRequireWildcardCache = function () { return cache; }; return cache; }
-
-function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-/* eslint no-unused-vars: 0 */
-
-
-var canStoreURLs = true;
-exports.canStoreURLs = canStoreURLs;
-
-var FileUrlStorage = /*#__PURE__*/function () {
-  function FileUrlStorage(filePath) {
-    _classCallCheck(this, FileUrlStorage);
-
-    this.path = filePath;
-  }
-
-  _createClass(FileUrlStorage, [{
-    key: "findAllUploads",
-    value: function findAllUploads() {
-      var _this = this;
-
-      return new Promise(function (resolve, reject) {
-        _this._getItems('tus::', function (err, results) {
-          if (err) return reject(err);
-          resolve(results);
-        });
-      });
-    }
-  }, {
-    key: "findUploadsByFingerprint",
-    value: function findUploadsByFingerprint(fingerprint) {
-      var _this2 = this;
-
-      return new Promise(function (resolve, reject) {
-        _this2._getItems("tus::".concat(fingerprint), function (err, results) {
-          if (err) return reject(err);
-          resolve(results);
-        });
-      });
-    }
-  }, {
-    key: "removeUpload",
-    value: function removeUpload(urlStorageKey) {
-      var _this3 = this;
-
-      return new Promise(function (resolve, reject) {
-        _this3._removeItem(urlStorageKey, function (err) {
-          if (err) return reject(err);
-          resolve();
-        });
-      });
-    }
-  }, {
-    key: "addUpload",
-    value: function addUpload(fingerprint, upload) {
-      var _this4 = this;
-
-      var id = Math.round(Math.random() * 1e12);
-      var key = "tus::".concat(fingerprint, "::").concat(id);
-      return new Promise(function (resolve, reject) {
-        _this4._setItem(key, upload, function (err) {
-          if (err) return reject(err);
-          resolve(key);
-        });
-      });
-    }
-  }, {
-    key: "_setItem",
-    value: function _setItem(key, value, cb) {
-      var _this5 = this;
-
-      lockfile.lock(this.path, this._lockfileOptions(), function (err, release) {
-        if (err) {
-          return cb(err);
-        }
-
-        cb = _this5._releaseAndCb(release, cb);
-
-        _this5._getData(function (err, data) {
-          if (err) {
-            return cb(err);
-          }
-
-          data[key] = value;
-
-          _this5._writeData(data, function (err) {
-            return cb(err);
-          });
-        });
-      });
-    }
-  }, {
-    key: "_getItems",
-    value: function _getItems(prefix, cb) {
-      this._getData(function (err, data) {
-        if (err) {
-          return cb(err);
-        }
-
-        var results = Object.keys(data).filter(function (key) {
-          return key.startsWith(prefix);
-        }).map(function (key) {
-          var obj = data[key];
-          obj.urlStorageKey = key;
-          return obj;
-        });
-        cb(null, results);
-      });
-    }
-  }, {
-    key: "_removeItem",
-    value: function _removeItem(key, cb) {
-      var _this6 = this;
-
-      lockfile.lock(this.path, this._lockfileOptions(), function (err, release) {
-        if (err) {
-          return cb(err);
-        }
-
-        cb = _this6._releaseAndCb(release, cb);
-
-        _this6._getData(function (err, data) {
-          if (err) {
-            return cb(err);
-          }
-
-          delete data[key];
-
-          _this6._writeData(data, function (err) {
-            return cb(err);
-          });
-        });
-      });
-    }
-  }, {
-    key: "_lockfileOptions",
-    value: function _lockfileOptions() {
-      return {
-        realpath: false,
-        retries: {
-          retries: 5,
-          minTimeout: 20
-        }
-      };
-    }
-  }, {
-    key: "_releaseAndCb",
-    value: function _releaseAndCb(release, cb) {
-      return function (err) {
-        if (err) {
-          release(function (releaseErr) {
-            err = releaseErr ? combineErrors([err, releaseErr]) : err;
-            cb(err);
-          });
-          return;
-        }
-
-        release(cb);
-      };
-    }
-  }, {
-    key: "_writeData",
-    value: function _writeData(data, cb) {
-      var opts = {
-        encoding: 'utf8',
-        mode: 432,
-        flag: 'w'
-      };
-      (0, _fs.writeFile)(this.path, JSON.stringify(data), opts, function (err) {
-        return cb(err);
-      });
-    }
-  }, {
-    key: "_getData",
-    value: function _getData(cb) {
-      (0, _fs.readFile)(this.path, 'utf8', function (err, data) {
-        if (err) {
-          // return empty data if file does not exist
-          err.code === 'ENOENT' ? cb(null, {}) : cb(err);
-        } else {
-          try {
-            data = !data.trim().length ? {} : JSON.parse(data);
-          } catch (error) {
-            cb(error);
-            return;
-          }
-
-          cb(null, data);
-        }
-      });
-    }
-  }]);
-
-  return FileUrlStorage;
-}();
-
-exports.FileUrlStorage = FileUrlStorage;
-
-/***/ }),
-
-/***/ 4245:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-/* eslint no-unused-vars: "off" */
-
-
-var NoopUrlStorage = /*#__PURE__*/function () {
-  function NoopUrlStorage() {
-    _classCallCheck(this, NoopUrlStorage);
-  }
-
-  _createClass(NoopUrlStorage, [{
-    key: "listAllUploads",
-    value: function listAllUploads() {
-      return Promise.resolve([]);
-    }
-  }, {
-    key: "findUploadsByFingerprint",
-    value: function findUploadsByFingerprint(fingerprint) {
-      return Promise.resolve([]);
-    }
-  }, {
-    key: "removeUpload",
-    value: function removeUpload(urlStorageKey) {
-      return Promise.resolve();
-    }
-  }, {
-    key: "addUpload",
-    value: function addUpload(fingerprint, upload) {
-      return Promise.resolve(null);
-    }
-  }]);
-
-  return NoopUrlStorage;
-}();
-
-exports["default"] = NoopUrlStorage;
-
-/***/ }),
-
-/***/ 9979:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _jsBase = __nccwpck_require__(4139);
-
-var _urlParse = _interopRequireDefault(__nccwpck_require__(5682));
-
-var _error = _interopRequireDefault(__nccwpck_require__(7479));
-
-var _logger = __nccwpck_require__(9990);
-
-var _uuid = _interopRequireDefault(__nccwpck_require__(6925));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
-
-  if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    if (enumerableOnly) symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    });
-    keys.push.apply(keys, symbols);
-  }
-
-  return keys;
-}
-
-function _objectSpread(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = arguments[i] != null ? arguments[i] : {};
-
-    if (i % 2) {
-      ownKeys(Object(source), true).forEach(function (key) {
-        _defineProperty(target, key, source[key]);
-      });
-    } else if (Object.getOwnPropertyDescriptors) {
-      Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
-    } else {
-      ownKeys(Object(source)).forEach(function (key) {
-        Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
-      });
-    }
-  }
-
-  return target;
-}
-
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-
-  return obj;
-}
-
-function _slicedToArray(arr, i) {
-  return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest();
-}
-
-function _nonIterableRest() {
-  throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
-}
-
-function _unsupportedIterableToArray(o, minLen) {
-  if (!o) return;
-  if (typeof o === "string") return _arrayLikeToArray(o, minLen);
-  var n = Object.prototype.toString.call(o).slice(8, -1);
-  if (n === "Object" && o.constructor) n = o.constructor.name;
-  if (n === "Map" || n === "Set") return Array.from(o);
-  if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen);
-}
-
-function _arrayLikeToArray(arr, len) {
-  if (len == null || len > arr.length) len = arr.length;
-
-  for (var i = 0, arr2 = new Array(len); i < len; i++) {
-    arr2[i] = arr[i];
-  }
-
-  return arr2;
-}
-
-function _iterableToArrayLimit(arr, i) {
-  if (typeof Symbol === "undefined" || !(Symbol.iterator in Object(arr))) return;
-  var _arr = [];
-  var _n = true;
-  var _d = false;
-  var _e = undefined;
-
-  try {
-    for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
-      _arr.push(_s.value);
-
-      if (i && _arr.length === i) break;
-    }
-  } catch (err) {
-    _d = true;
-    _e = err;
-  } finally {
-    try {
-      if (!_n && _i["return"] != null) _i["return"]();
-    } finally {
-      if (_d) throw _e;
-    }
-  }
-
-  return _arr;
-}
-
-function _arrayWithHoles(arr) {
-  if (Array.isArray(arr)) return arr;
-}
-
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-/* global window */
-
-
-var defaultOptions = {
-  endpoint: null,
-  uploadUrl: null,
-  metadata: {},
-  fingerprint: null,
-  uploadSize: null,
-  onProgress: null,
-  onChunkComplete: null,
-  onSuccess: null,
-  onError: null,
-  _onUploadUrlAvailable: null,
-  overridePatchMethod: false,
-  headers: {},
-  addRequestId: false,
-  onBeforeRequest: null,
-  onAfterResponse: null,
-  onShouldRetry: null,
-  chunkSize: Infinity,
-  retryDelays: [0, 1000, 3000, 5000],
-  parallelUploads: 1,
-  splitSizeIntoParts: null,
-  // If set, wait for one partial parallel upload chunk to reach this percentage
-  // before resuming the next partial upload.
-  staggerPercent: null,
-  storeFingerprintForResuming: true,
-  removeFingerprintOnSuccess: false,
-  uploadLengthDeferred: false,
-  uploadDataDuringCreation: false,
-  urlStorage: null,
-  fileReader: null,
-  httpStack: null
-};
-
-var BaseUpload = /*#__PURE__*/function () {
-  function BaseUpload(file, options) {
-    _classCallCheck(this, BaseUpload); // Warn about removed options from previous versions
-
-
-    if ('resume' in options) {
-      console.log('tus: The `resume` option has been removed in tus-js-client v2. Please use the URL storage API instead.'); // eslint-disable-line no-console
-    } // The default options will already be added from the wrapper classes.
-
-
-    this.options = options; // Cast chunkSize to integer
-
-    this.options.chunkSize = +this.options.chunkSize; // The storage module used to store URLs
-
-    this._urlStorage = this.options.urlStorage; // The underlying File/Blob object
-
-    this.file = file; // The URL against which the file will be uploaded
-
-    this.url = null; // The underlying request object for the current PATCH request
-
-    this._req = null; // The fingerpinrt for the current file (set after start())
-
-    this._fingerprint = null; // The key that the URL storage returned when saving an URL with a fingerprint,
-
-    this._urlStorageKey = null; // The offset used in the current PATCH request
-
-    this._offset = null; // True if the current PATCH request has been aborted
-
-    this._aborted = false; // The file's size in bytes
-
-    this._size = null; // The Source object which will wrap around the given file and provides us
-    // with a unified interface for getting its size and slice chunks from its
-    // content allowing us to easily handle Files, Blobs, Buffers and Streams.
-
-    this._source = null; // The current count of attempts which have been made. Zero indicates none.
-
-    this._retryAttempt = 0; // The timeout's ID which is used to delay the next retry
-
-    this._retryTimeout = null; // The offset of the remote upload before the latest attempt was started.
-
-    this._offsetBeforeRetry = 0; // An array of BaseUpload instances which are used for uploading the different
-    // parts, if the parallelUploads option is used.
-
-    this._parallelUploads = null; // A custom function for splitting the upload size into parts, if the
-    // parallelUploads option is used.
-
-    this._splitSizeIntoParts = null; // An array of upload URLs which are used for uploading the different
-    // parts, if the parallelUploads option is used.
-
-    this._parallelUploadUrls = null; // If a partial upload, the current chunk object that this partial upload is
-    // uploading.
-
-    this._currentChunk = null; // Whether this is an initial upload, or subtasks initiated in
-    // _startParallelUpload.
-
-    this._initialUpload = true;
-  }
-  /**
-   * Use the Termination extension to delete an upload from the server by sending a DELETE
-   * request to the specified upload URL. This is only possible if the server supports the
-   * Termination extension. If the `options.retryDelays` property is set, the method will
-   * also retry if an error ocurrs.
-   *
-   * @param {String} url The upload's URL which will be terminated.
-   * @param {object} options Optional options for influencing HTTP requests.
-   * @return {Promise} The Promise will be resolved/rejected when the requests finish.
-   */
-
-
-  _createClass(BaseUpload, [{
-    key: "findPreviousUploads",
-    value: function findPreviousUploads() {
-      var _this = this;
-
-      return this.options.fingerprint(this.file, this.options).then(function (fingerprint) {
-        return _this._urlStorage.findUploadsByFingerprint(fingerprint);
-      });
-    }
-  }, {
-    key: "resumeFromPreviousUpload",
-    value: function resumeFromPreviousUpload(previousUpload) {
-      this.url = previousUpload.uploadUrl || null;
-      this._parallelUploadUrls = previousUpload.parallelUploadUrls || null;
-      this._urlStorageKey = previousUpload.urlStorageKey;
-    }
-  }, {
-    key: "start",
-    value: function start() {
-      var _this2 = this;
-
-      var file = this.file;
-
-      if (!file) {
-        this._emitError(new Error('tus: no file or stream to upload provided'));
-
-        return;
-      }
-
-      if (!this.options.endpoint && !this.options.uploadUrl) {
-        this._emitError(new Error('tus: neither an endpoint or an upload URL is provided'));
-
-        return;
-      }
-
-      var retryDelays = this.options.retryDelays;
-
-      if (retryDelays != null && Object.prototype.toString.call(retryDelays) !== '[object Array]') {
-        this._emitError(new Error('tus: the `retryDelays` option must either be an array or null'));
-
-        return;
-      }
-
-      if (this.options.parallelUploads > 1) {
-        // Test which options are incompatible with parallel uploads.
-        ['uploadUrl', 'uploadSize', 'uploadLengthDeferred'].forEach(function (optionName) {
-          if (_this2.options[optionName]) {
-            _this2._emitError(new Error("tus: cannot use the ".concat(optionName, " option when parallelUploads is enabled")));
-          }
-        });
-      }
-
-      if (this.options.staggerPercent !== null) {
-        if (this._initialUpload && this.options.parallelUploads <= 1) {
-          this._emitError(new Error("tus: cannot use the staggerPercent option when parallelUploads is disabled"));
-        }
-      }
-
-      if (this.options.splitSizeIntoParts !== null) {
-        if (this.options.parallelUploads <= 1) {
-          this._emitError(new Error("tus: cannot use the splitSizeIntoParts option when parallelUploads is disabled"));
-        }
-      }
-
-      this.options.fingerprint(file, this.options).then(function (fingerprint) {
-        if (fingerprint == null) {
-          (0, _logger.log)('No fingerprint was calculated meaning that the upload cannot be stored in the URL storage.');
-        } else {
-          (0, _logger.log)("Calculated fingerprint: ".concat(fingerprint));
-        }
-
-        _this2._fingerprint = fingerprint;
-
-        if (_this2._source) {
-          return _this2._source;
-        }
-
-        return _this2.options.fileReader.openFile(file, _this2.options.chunkSize);
-      }).then(function (source) {
-        _this2._source = source; // If the upload was configured to use multiple requests or if we resume from
-        // an upload which used multiple requests, we start a parallel upload.
-
-        if (_this2.options.parallelUploads > 1 || _this2._parallelUploadUrls != null) {
-          _this2._startParallelUpload();
-        } else {
-          _this2._startSingleUpload();
-        }
-      })["catch"](function (err) {
-        _this2._emitError(err);
-      });
-    }
-    /**
-     * Initiate the uploading procedure for a parallelized upload, where one file is split into
-     * multiple request which are run in parallel.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_startParallelUpload",
-    value: function _startParallelUpload() {
-      var _this$options$splitSi,
-          _this3 = this;
-
-      var totalSize = this._size = this._source.size;
-      var totalProgress = 0;
-      var _this$options = this.options,
-          chunkSize = _this$options.chunkSize,
-          staggerPercent = _this$options.staggerPercent;
-      this._parallelUploads = [];
-      var partCount = this._parallelUploadUrls != null ? this._parallelUploadUrls.length : this.options.parallelUploads; // The input file will be split into multiple slices which are uploaded in separate
-      // requests. Here we generate the start and end position for the slices.
-
-      var splitSizeFn = (_this$options$splitSi = this.options.splitSizeIntoParts) !== null && _this$options$splitSi !== void 0 ? _this$options$splitSi : splitSizeIntoParts;
-      var parts = splitSizeFn(this._source.size, partCount); // Attach URLs from previous uploads, if available.
-
-      if (this._parallelUploadUrls) {
-        parts.forEach(function (part, index) {
-          part.uploadUrl = _this3._parallelUploadUrls[index] || null;
-        });
-      } // Create an empty list for storing the upload URLs
-
-
-      this._parallelUploadUrls = new Array(parts.length);
-      var firstChunk = null;
-      var partsChunks = null;
-
-      if (staggerPercent !== null) {
-        // Generate a promise for each chunk that will be resolved when the respective
-        // upload is completed.
-        var _buildChunkStaggers = buildChunkStaggers(totalSize, parts.length, chunkSize);
-
-        var _buildChunkStaggers2 = _slicedToArray(_buildChunkStaggers, 2);
-
-        partsChunks = _buildChunkStaggers2[0];
-        firstChunk = _buildChunkStaggers2[1];
-      }
-
-      var uploads = parts.map(function (part, index) {
-        var lastPartProgress = 0;
-        return _this3._source.slice(part.start, part.end).then(function (_ref) {
-          var value = _ref.value;
-          return new Promise(function (resolve, reject) {
-            // Merge with the user supplied options but overwrite some values.
-            var options = _objectSpread(_objectSpread({}, _this3.options), {}, {
-              // If available, the partial upload should be resumed from a previous URL.
-              uploadUrl: part.uploadUrl || null,
-              // We take manually care of resuming for partial uploads, so they should
-              // not be stored in the URL storage.
-              storeFingerprintForResuming: false,
-              removeFingerprintOnSuccess: false,
-              // Reset the parallelUploads option to not cause recursion.
-              parallelUploads: 1,
-              // Reset parallel upload options. Keep the stagger option.
-              splitSizeIntoParts: null,
-              // Reset metadata.
-              metadata: {},
-              // Add the header to indicate the this is a partial upload.
-              headers: _objectSpread(_objectSpread({}, _this3.options.headers), {}, {
-                'Upload-Concat': 'partial'
-              }),
-              // Reject or resolve the promise if the upload errors or completes.
-              onSuccess: resolve,
-              onError: reject,
-              // Wait until every partial upload has an upload URL, so we can add
-              // them to the URL storage.
-              _onUploadUrlAvailable: function _onUploadUrlAvailable() {
-                _this3._parallelUploadUrls[index] = upload.url; // Test if all uploads have received an URL
-
-                if (_this3._parallelUploadUrls.filter(function (u) {
-                  return !!u;
-                }).length === parts.length) {
-                  _this3._saveUploadInUrlStorage();
-                }
-              }
-            });
-
-            var upload = new BaseUpload(value, options); // Finalize the partial upload fields.
-
-            upload.options.onProgress = function (newPartProgress) {
-              // Based on the progress for this partial upload, calculate the progress
-              // for the entire final upload.
-              //
-              // NOTE: This is called for each partial upload but `_emitProgress`
-              // calls the `onProgress` method for the original upload.
-              totalProgress = totalProgress - lastPartProgress + newPartProgress;
-              lastPartProgress = newPartProgress; // Signal to the initial `BaseUpload` object.
-
-              _this3._emitProgress(totalProgress, totalSize); // If a chunk stagger is set, signal to the other upload when it can
-              // start uploading.
-
-
-              if (staggerPercent !== null) {
-                // Calculate stagger using the current chunk and not the
-                // current part size.
-                var chunk = upload._currentChunk;
-                var chunkProgress = newPartProgress - chunkSize * chunk.indexInPart;
-                var chunkPercent = chunkProgress / chunkSize * 100;
-                console.log('part:', index + 1, 'chunk:', chunk.indexInPart + 1, '| chunk percent:', chunkPercent);
-                var nextChunk = chunk.nextChunkStagger;
-
-                if (nextChunk !== null && !nextChunk.resolved && chunkPercent >= staggerPercent) {
-                  console.log('Reached stagger'); // The next partial upload that should start when this partial upload
-                  // reaches the stagger for a chunk.
-
-                  nextChunk.resolve();
-                  nextChunk.resolved = true;
-                }
-              }
-            };
-
-            upload._initialUpload = false;
-            var promise = Promise.resolve();
-
-            if (staggerPercent !== null) {
-              var currentChunk = partsChunks[index][0]; // Wait for the initial stagger for this chunk before starting the part.
-
-              promise = currentChunk.promise;
-              upload._currentChunk = currentChunk;
-            }
-
-            promise.then(function () {
-              return upload.start();
-            }); // Store the uploads in an array, so we can later abort them if necessary.
-
-            _this3._parallelUploads.push(upload);
-          });
-        });
-      });
-
-      if (staggerPercent !== null) {
-        // Kick off the first upload.
-        firstChunk.resolve();
-      }
-
-      var req; // Wait until all partial uploads are finished and we can send the POST request for
-      // creating the final upload.
-
-      Promise.all(uploads).then(function () {
-        req = _this3._openRequest('POST', _this3.options.endpoint);
-        req.setHeader('Upload-Concat', "final;".concat(_this3._parallelUploadUrls.join(' '))); // Add metadata if values have been added
-
-        var metadata = encodeMetadata(_this3.options.metadata);
-
-        if (metadata !== '') {
-          req.setHeader('Upload-Metadata', metadata);
-        }
-
-        return _this3._sendRequest(req, null);
-      }).then(function (res) {
-        if (!inStatusCategory(res.getStatus(), 200)) {
-          _this3._emitHttpError(req, res, 'tus: unexpected response while creating upload');
-
-          return;
-        }
-
-        var location = res.getHeader('Location');
-
-        if (location == null) {
-          _this3._emitHttpError(req, res, 'tus: invalid or missing Location header');
-
-          return;
-        }
-
-        _this3.url = resolveUrl(_this3.options.endpoint, location);
-        (0, _logger.log)("Created upload at ".concat(_this3.url));
-
-        _this3._emitSuccess();
-      })["catch"](function (err) {
-        _this3._emitError(err);
-      });
-    }
-    /**
-     * Initiate the uploading procedure for a non-parallel upload. Here the entire file is
-     * uploaded in a sequential matter.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_startSingleUpload",
-    value: function _startSingleUpload() {
-      // First, we look at the uploadLengthDeferred option.
-      // Next, we check if the caller has supplied a manual upload size.
-      // Finally, we try to use the calculated size from the source object.
-      if (this.options.uploadLengthDeferred) {
-        this._size = null;
-      } else if (this.options.uploadSize != null) {
-        this._size = +this.options.uploadSize;
-
-        if (isNaN(this._size)) {
-          this._emitError(new Error('tus: cannot convert `uploadSize` option into a number'));
-
-          return;
-        }
-      } else {
-        this._size = this._source.size;
-
-        if (this._size == null) {
-          this._emitError(new Error("tus: cannot automatically derive upload's size from input. Specify it manually using the `uploadSize` option or use the `uploadLengthDeferred` option"));
-
-          return;
-        }
-      } // Reset the aborted flag when the upload is started or else the
-      // _performUpload will stop before sending a request if the upload has been
-      // aborted previously.
-
-
-      this._aborted = false; // The upload had been started previously and we should reuse this URL.
-
-      if (this.url != null) {
-        (0, _logger.log)("Resuming upload from previous URL: ".concat(this.url));
-
-        this._resumeUpload();
-
-        return;
-      } // A URL has manually been specified, so we try to resume
-
-
-      if (this.options.uploadUrl != null) {
-        (0, _logger.log)("Resuming upload from provided URL: ".concat(this.options.uploadUrl));
-        this.url = this.options.uploadUrl;
-
-        this._resumeUpload();
-
-        return;
-      } // An upload has not started for the file yet, so we start a new one
-
-
-      (0, _logger.log)('Creating a new upload');
-
-      this._createUpload();
-    }
-    /**
-     * Abort any running request and stop the current upload. After abort is called, no event
-     * handler will be invoked anymore. You can use the `start` method to resume the upload
-     * again.
-     * If `shouldTerminate` is true, the `terminate` function will be called to remove the
-     * current upload from the server.
-     *
-     * @param {boolean} shouldTerminate True if the upload should be deleted from the server.
-     * @return {Promise} The Promise will be resolved/rejected when the requests finish.
-     */
-
-  }, {
-    key: "abort",
-    value: function abort(shouldTerminate) {
-      var _this4 = this; // Count the number of arguments to see if a callback is being provided in the old style required by tus-js-client 1.x, then throw an error if it is.
-      // `arguments` is a JavaScript built-in variable that contains all of the function's arguments.
-
-
-      if (arguments.length > 1 && typeof arguments[1] === 'function') {
-        throw new Error('tus: the abort function does not accept a callback since v2 anymore; please use the returned Promise instead');
-      } // Stop any parallel partial uploads, that have been started in _startParallelUploads.
-
-
-      if (this._parallelUploads != null) {
-        this._parallelUploads.forEach(function (upload) {
-          upload.abort(shouldTerminate);
-        });
-      } // Stop any current running request.
-
-
-      if (this._req !== null) {
-        this._req.abort();
-
-        this._source.close();
-      }
-
-      this._aborted = true; // Stop any timeout used for initiating a retry.
-
-      if (this._retryTimeout != null) {
-        clearTimeout(this._retryTimeout);
-        this._retryTimeout = null;
-      }
-
-      if (!shouldTerminate || this.url == null) {
-        return Promise.resolve();
-      }
-
-      return BaseUpload.terminate(this.url, this.options) // Remove entry from the URL storage since the upload URL is no longer valid.
-      .then(function () {
-        return _this4._removeFromUrlStorage();
-      });
-    }
-  }, {
-    key: "_emitHttpError",
-    value: function _emitHttpError(req, res, message, causingErr) {
-      this._emitError(new _error.default(message, causingErr, req, res));
-    }
-  }, {
-    key: "_emitError",
-    value: function _emitError(err) {
-      var _this5 = this; // Do not emit errors, e.g. from aborted HTTP requests, if the upload has been stopped.
-
-
-      if (this._aborted) return; // Check if we should retry, when enabled, before sending the error to the user.
-
-      if (this.options.retryDelays != null) {
-        // We will reset the attempt counter if
-        // - we were already able to connect to the server (offset != null) and
-        // - we were able to upload a small chunk of data to the server
-        var shouldResetDelays = this._offset != null && this._offset > this._offsetBeforeRetry;
-
-        if (shouldResetDelays) {
-          this._retryAttempt = 0;
-        }
-
-        if (shouldRetry(err, this._retryAttempt, this.options)) {
-          var delay = this.options.retryDelays[this._retryAttempt++];
-          this._offsetBeforeRetry = this._offset;
-          this._retryTimeout = setTimeout(function () {
-            _this5.start();
-          }, delay);
-          return;
-        }
-      }
-
-      if (typeof this.options.onError === 'function') {
-        this.options.onError(err);
-      } else {
-        throw err;
-      }
-    }
-    /**
-     * Publishes notification if the upload has been successfully completed.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_emitSuccess",
-    value: function _emitSuccess() {
-      if (this.options.removeFingerprintOnSuccess) {
-        // Remove stored fingerprint and corresponding endpoint. This causes
-        // new uploads of the same file to be treated as a different file.
-        this._removeFromUrlStorage();
-      }
-
-      if (typeof this.options.onSuccess === 'function') {
-        this.options.onSuccess();
-      }
-    }
-    /**
-     * Publishes notification when data has been sent to the server. This
-     * data may not have been accepted by the server yet.
-     *
-     * @param {number} bytesSent  Number of bytes sent to the server.
-     * @param {number} bytesTotal Total number of bytes to be sent to the server.
-     * @api private
-     */
-
-  }, {
-    key: "_emitProgress",
-    value: function _emitProgress(bytesSent, bytesTotal) {
-      if (typeof this.options.onProgress === 'function') {
-        this.options.onProgress(bytesSent, bytesTotal);
-      }
-    }
-    /**
-     * Publishes notification when a chunk of data has been sent to the server
-     * and accepted by the server.
-     * @param {number} chunkSize  Size of the chunk that was accepted by the server.
-     * @param {number} bytesAccepted Total number of bytes that have been
-     *                                accepted by the server.
-     * @param {number} bytesTotal Total number of bytes to be sent to the server.
-     * @api private
-     */
-
-  }, {
-    key: "_emitChunkComplete",
-    value: function _emitChunkComplete(chunkSize, bytesAccepted, bytesTotal) {
-      if (typeof this.options.onChunkComplete === 'function') {
-        this.options.onChunkComplete(chunkSize, bytesAccepted, bytesTotal);
-      }
-    }
-    /**
-     * Create a new upload using the creation extension by sending a POST
-     * request to the endpoint. After successful creation the file will be
-     * uploaded
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_createUpload",
-    value: function _createUpload() {
-      var _this6 = this;
-
-      if (!this.options.endpoint) {
-        this._emitError(new Error('tus: unable to create upload because no endpoint is provided'));
-
-        return;
-      }
-
-      var req = this._openRequest('POST', this.options.endpoint);
-
-      if (this.options.uploadLengthDeferred) {
-        req.setHeader('Upload-Defer-Length', 1);
-      } else {
-        req.setHeader('Upload-Length', this._size);
-      } // Add metadata if values have been added
-
-
-      var metadata = encodeMetadata(this.options.metadata);
-
-      if (metadata !== '') {
-        req.setHeader('Upload-Metadata', metadata);
-      }
-
-      var promise;
-
-      if (this.options.uploadDataDuringCreation && !this.options.uploadLengthDeferred) {
-        this._offset = 0;
-        promise = this._addChunkToRequest(req);
-      } else {
-        promise = this._sendRequest(req, null);
-      }
-
-      promise.then(function (res) {
-        if (!inStatusCategory(res.getStatus(), 200)) {
-          _this6._emitHttpError(req, res, 'tus: unexpected response while creating upload');
-
-          return;
-        }
-
-        var location = res.getHeader('Location');
-
-        if (location == null) {
-          _this6._emitHttpError(req, res, 'tus: invalid or missing Location header');
-
-          return;
-        }
-
-        _this6.url = resolveUrl(_this6.options.endpoint, location);
-        (0, _logger.log)("Created upload at ".concat(_this6.url));
-
-        if (typeof _this6.options._onUploadUrlAvailable === 'function') {
-          _this6.options._onUploadUrlAvailable();
-        }
-
-        if (_this6._size === 0) {
-          // Nothing to upload and file was successfully created
-          _this6._emitSuccess();
-
-          _this6._source.close();
-
-          return;
-        }
-
-        _this6._saveUploadInUrlStorage();
-
-        if (_this6.options.uploadDataDuringCreation) {
-          _this6._handleUploadResponse(req, res);
-        } else {
-          _this6._offset = 0;
-
-          _this6._performUpload();
-        }
-      })["catch"](function (err) {
-        _this6._emitHttpError(req, null, 'tus: failed to create upload', err);
-      });
-    }
-    /*
-     * Try to resume an existing upload. First a HEAD request will be sent
-     * to retrieve the offset. If the request fails a new upload will be
-     * created. In the case of a successful response the file will be uploaded.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_resumeUpload",
-    value: function _resumeUpload() {
-      var _this7 = this;
-
-      var req = this._openRequest('HEAD', this.url);
-
-      var promise = this._sendRequest(req, null);
-
-      promise.then(function (res) {
-        var status = res.getStatus();
-
-        if (!inStatusCategory(status, 200)) {
-          if (inStatusCategory(status, 400)) {
-            // Remove stored fingerprint and corresponding endpoint,
-            // on client errors since the file can not be found
-            _this7._removeFromUrlStorage();
-          } // If the upload is locked (indicated by the 423 Locked status code), we
-          // emit an error instead of directly starting a new upload. This way the
-          // retry logic can catch the error and will retry the upload. An upload
-          // is usually locked for a short period of time and will be available
-          // afterwards.
-
-
-          if (status === 423) {
-            _this7._emitHttpError(req, res, 'tus: upload is currently locked; retry later');
-
-            return;
-          }
-
-          if (!_this7.options.endpoint) {
-            // Don't attempt to create a new upload if no endpoint is provided.
-            _this7._emitHttpError(req, res, 'tus: unable to resume upload (new upload cannot be created without an endpoint)');
-
-            return;
-          } // Try to create a new upload
-
-
-          _this7.url = null;
-
-          _this7._createUpload();
-
-          return;
-        }
-
-        var offset = parseInt(res.getHeader('Upload-Offset'), 10);
-
-        if (isNaN(offset)) {
-          _this7._emitHttpError(req, res, 'tus: invalid or missing offset value');
-
-          return;
-        }
-
-        var length = parseInt(res.getHeader('Upload-Length'), 10);
-
-        if (isNaN(length) && !_this7.options.uploadLengthDeferred) {
-          _this7._emitHttpError(req, res, 'tus: invalid or missing length value');
-
-          return;
-        }
-
-        if (typeof _this7.options._onUploadUrlAvailable === 'function') {
-          _this7.options._onUploadUrlAvailable();
-        } // Upload has already been completed and we do not need to send additional
-        // data to the server
-
-
-        if (offset === length) {
-          _this7._emitProgress(length, length);
-
-          _this7._emitSuccess();
-
-          return;
-        }
-
-        _this7._offset = offset;
-
-        _this7._performUpload();
-      })["catch"](function (err) {
-        _this7._emitHttpError(req, null, 'tus: failed to resume upload', err);
-      });
-    }
-    /**
-     * Start uploading the file using PATCH requests. The file will be divided
-     * into chunks as specified in the chunkSize option. During the upload
-     * the onProgress event handler may be invoked multiple times.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_performUpload",
-    value: function _performUpload() {
-      var _this8 = this; // If the upload has been aborted, we will not send the next PATCH request.
-      // This is important if the abort method was called during a callback, such
-      // as onChunkComplete or onProgress.
-
-
-      if (this._aborted) {
-        return;
-      }
-
-      var req; // Some browser and servers may not support the PATCH method. For those
-      // cases, you can tell tus-js-client to use a POST request with the
-      // X-HTTP-Method-Override header for simulating a PATCH request.
-
-      if (this.options.overridePatchMethod) {
-        req = this._openRequest('POST', this.url);
-        req.setHeader('X-HTTP-Method-Override', 'PATCH');
-      } else {
-        req = this._openRequest('PATCH', this.url);
-      }
-
-      req.setHeader('Upload-Offset', this._offset);
-
-      var promise = this._addChunkToRequest(req);
-
-      promise.then(function (res) {
-        if (!inStatusCategory(res.getStatus(), 200)) {
-          _this8._emitHttpError(req, res, 'tus: unexpected response while uploading chunk');
-
-          return;
-        }
-
-        _this8._handleUploadResponse(req, res);
-      })["catch"](function (err) {
-        // Don't emit an error if the upload was aborted manually
-        if (_this8._aborted) {
-          return;
-        }
-
-        _this8._emitHttpError(req, null, "tus: failed to upload chunk at offset ".concat(_this8._offset), err);
-      });
-    }
-    /**
-     * _addChunktoRequest reads a chunk from the source and sends it using the
-     * supplied request object. It will not handle the response.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_addChunkToRequest",
-    value: function _addChunkToRequest(req) {
-      var _this9 = this;
-
-      var start = this._offset;
-      var end = this._offset + this.options.chunkSize;
-      req.setProgressHandler(function (bytesSent) {
-        _this9._emitProgress(start + bytesSent, _this9._size);
-      });
-      req.setHeader('Content-Type', 'application/offset+octet-stream'); // The specified chunkSize may be Infinity or the calcluated end position
-      // may exceed the file's size. In both cases, we limit the end position to
-      // the input's total size for simpler calculations and correctness.
-
-      if ((end === Infinity || end > this._size) && !this.options.uploadLengthDeferred) {
-        end = this._size;
-      }
-
-      return this._source.slice(start, end).then(function (_ref2) {
-        var value = _ref2.value,
-            done = _ref2.done; // If the upload length is deferred, the upload size was not specified during
-        // upload creation. So, if the file reader is done reading, we know the total
-        // upload size and can tell the tus server.
-
-        if (_this9.options.uploadLengthDeferred && done) {
-          _this9._size = _this9._offset + (value && value.size ? value.size : 0);
-          req.setHeader('Upload-Length', _this9._size);
-        }
-
-        if (value === null) {
-          return _this9._sendRequest(req);
-        }
-
-        _this9._emitProgress(_this9._offset, _this9._size);
-
-        return _this9._sendRequest(req, value);
-      });
-    }
-    /**
-     * _handleUploadResponse is used by requests that haven been sent using _addChunkToRequest
-     * and already have received a response.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_handleUploadResponse",
-    value: function _handleUploadResponse(req, res) {
-      var _this10 = this;
-
-      var offset = parseInt(res.getHeader('Upload-Offset'), 10);
-
-      if (isNaN(offset)) {
-        this._emitHttpError(req, res, 'tus: invalid or missing offset value');
-
-        return;
-      }
-
-      this._emitProgress(offset, this._size);
-
-      this._emitChunkComplete(offset - this._offset, offset, this._size);
-
-      this._offset = offset;
-
-      if (offset == this._size) {
-        // Yay, finally done :)
-        this._emitSuccess();
-
-        this._source.close();
-
-        return;
-      } // Not done uploading yet.
-
-
-      var promise = Promise.resolve();
-
-      if (this.options.staggerPercent !== null) {
-        this._currentChunk = this._currentChunk.nextChunkInPart;
-
-        if (this.currentChunk !== null) {
-          // If the stagger is set, wait for the stagger for the current chunk.
-          promise = this._currentChunk.promise;
-        }
-      }
-
-      promise.then(function () {
-        return _this10._performUpload();
-      });
-    }
-    /**
-     * Create a new HTTP request object with the given method and URL.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_openRequest",
-    value: function _openRequest(method, url) {
-      var req = openRequest(method, url, this.options);
-      this._req = req;
-      return req;
-    }
-    /**
-     * Remove the entry in the URL storage, if it has been saved before.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_removeFromUrlStorage",
-    value: function _removeFromUrlStorage() {
-      var _this11 = this;
-
-      if (!this._urlStorageKey) return;
-
-      this._urlStorage.removeUpload(this._urlStorageKey)["catch"](function (err) {
-        _this11._emitError(err);
-      });
-
-      this._urlStorageKey = null;
-    }
-    /**
-     * Add the upload URL to the URL storage, if possible.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_saveUploadInUrlStorage",
-    value: function _saveUploadInUrlStorage() {
-      var _this12 = this; // Only if a fingerprint was calculated for the input (i.e. not a stream), we can store the upload URL.
-
-
-      if (!this.options.storeFingerprintForResuming || !this._fingerprint) {
-        return;
-      }
-
-      var storedUpload = {
-        size: this._size,
-        metadata: this.options.metadata,
-        creationTime: new Date().toString()
-      };
-
-      if (this._parallelUploads) {
-        // Save multiple URLs if the parallelUploads option is used ...
-        storedUpload.parallelUploadUrls = this._parallelUploadUrls;
-      } else {
-        // ... otherwise we just save the one available URL.
-        storedUpload.uploadUrl = this.url;
-      }
-
-      this._urlStorage.addUpload(this._fingerprint, storedUpload).then(function (urlStorageKey) {
-        return _this12._urlStorageKey = urlStorageKey;
-      })["catch"](function (err) {
-        _this12._emitError(err);
-      });
-    }
-    /**
-     * Send a request with the provided body.
-     *
-     * @api private
-     */
-
-  }, {
-    key: "_sendRequest",
-    value: function _sendRequest(req) {
-      var body = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-      return sendRequest(req, body, this.options);
-    }
-  }], [{
-    key: "terminate",
-    value: function terminate(url, options) {
-      // Count the number of arguments to see if a callback is being provided as the last
-      // argument in the old style required by tus-js-client 1.x, then throw an error if it is.
-      // `arguments` is a JavaScript built-in variable that contains all of the function's arguments.
-      if (arguments.length > 1 && typeof arguments[arguments.length - 1] === 'function') {
-        throw new Error('tus: the terminate function does not accept a callback since v2 anymore; please use the returned Promise instead');
-      } // Note that in order for the trick above to work, a default value cannot be set for `options`,
-      // so the check below replaces the old default `{}`.
-
-
-      if (options === undefined) {
-        options = {};
-      }
-
-      var req = openRequest('DELETE', url, options);
-      return sendRequest(req, null, options).then(function (res) {
-        // A 204 response indicates a successfull request
-        if (res.getStatus() === 204) {
-          return;
-        }
-
-        throw new _error.default('tus: unexpected response while terminating upload', null, req, res);
-      })["catch"](function (err) {
-        if (!(err instanceof _error.default)) {
-          err = new _error.default('tus: failed to terminate upload', err, req, null);
-        }
-
-        if (!shouldRetry(err, 0, options)) {
-          throw err;
-        } // Instead of keeping track of the retry attempts, we remove the first element from the delays
-        // array. If the array is empty, all retry attempts are used up and we will bubble up the error.
-        // We recursively call the terminate function will removing elements from the retryDelays array.
-
-
-        var delay = options.retryDelays[0];
-        var remainingDelays = options.retryDelays.slice(1);
-
-        var newOptions = _objectSpread(_objectSpread({}, options), {}, {
-          retryDelays: remainingDelays
-        });
-
-        return new Promise(function (resolve) {
-          return setTimeout(resolve, delay);
-        }).then(function () {
-          return BaseUpload.terminate(url, newOptions);
-        });
-      });
-    }
-  }]);
-
-  return BaseUpload;
-}();
-
-function encodeMetadata(metadata) {
-  var encoded = [];
-
-  for (var key in metadata) {
-    encoded.push("".concat(key, " ").concat(_jsBase.Base64.encode(metadata[key])));
-  }
-
-  return encoded.join(',');
-}
-/**
- * Checks whether a given status is in the range of the expected category.
- * For example, only a status between 200 and 299 will satisfy the category 200.
- *
- * @api private
- */
-
-
-function inStatusCategory(status, category) {
-  return status >= category && status < category + 100;
-}
-/**
- * Create a new HTTP request with the specified method and URL.
- * The necessary headers that are included in every request
- * will be added, including the request ID.
- *
- * @api private
- */
-
-
-function openRequest(method, url, options) {
-  var req = options.httpStack.createRequest(method, url);
-  req.setHeader('Tus-Resumable', '1.0.0');
-  var headers = options.headers || {};
-
-  for (var name in headers) {
-    req.setHeader(name, headers[name]);
-  }
-
-  if (options.addRequestId) {
-    var requestId = (0, _uuid.default)();
-    req.setHeader('X-Request-ID', requestId);
-  }
-
-  return req;
-}
-/**
- * Send a request with the provided body while invoking the onBeforeRequest
- * and onAfterResponse callbacks.
- *
- * @api private
- */
-
-
-function sendRequest(req, body, options) {
-  var onBeforeRequestPromise = typeof options.onBeforeRequest === 'function' ? Promise.resolve(options.onBeforeRequest(req)) : Promise.resolve();
-  return onBeforeRequestPromise.then(function () {
-    return req.send(body).then(function (res) {
-      var onAfterResponsePromise = typeof options.onAfterResponse === 'function' ? Promise.resolve(options.onAfterResponse(req, res)) : Promise.resolve();
-      return onAfterResponsePromise.then(function () {
-        return res;
-      });
-    });
-  });
-}
-/**
- * Checks whether the browser running this code has internet access.
- * This function will always return true in the node.js environment
- *
- * @api private
- */
-
-
-function isOnline() {
-  var online = true;
-
-  if (typeof window !== 'undefined' && 'navigator' in window && window.navigator.onLine === false) {
-    online = false;
-  }
-
-  return online;
-}
-/**
- * Checks whether or not it is ok to retry a request.
- * @param {Error} err the error returned from the last request
- * @param {number} retryAttempt the number of times the request has already been retried
- * @param {object} options tus Upload options
- *
- * @api private
- */
-
-
-function shouldRetry(err, retryAttempt, options) {
-  // We only attempt a retry if
-  // - retryDelays option is set
-  // - we didn't exceed the maxium number of retries, yet, and
-  // - this error was caused by a request or it's response and
-  // - the error is server error (i.e. not a status 4xx except a 409 or 423) or
-  // a onShouldRetry is specified and returns true
-  // - the browser does not indicate that we are offline
-  if (options.retryDelays == null || retryAttempt >= options.retryDelays.length || err.originalRequest == null) {
-    return false;
-  }
-
-  if (options && typeof options.onShouldRetry === 'function') {
-    return options.onShouldRetry(err, retryAttempt, options);
-  }
-
-  var status = err.originalResponse ? err.originalResponse.getStatus() : 0;
-  return (!inStatusCategory(status, 400) || status === 409 || status === 423) && isOnline();
-}
-/**
- * Resolve a relative link given the origin as source. For example,
- * if a HTTP request to http://example.com/files/ returns a Location
- * header with the value /upload/abc, the resolved URL will be:
- * http://example.com/upload/abc
- */
-
-
-function resolveUrl(origin, link) {
-  return new _urlParse.default(link, origin).toString();
-}
-/**
- * Calculate the start and end positions for the parts if an upload
- * is split into multiple parallel requests.
- *
- * @param {number} totalSize The byte size of the upload, which will be split.
- * @param {number} partCount The number in how many parts the upload will be split.
- * @return {object[]}
- * @api private
- */
-
-
-function splitSizeIntoParts(totalSize, partCount) {
-  var partSize = Math.floor(totalSize / partCount);
-  var parts = [];
-
-  for (var i = 0; i < partCount; i++) {
-    parts.push({
-      start: partSize * i,
-      end: partSize * (i + 1)
-    });
-  }
-
-  parts[partCount - 1].end = totalSize;
-  return parts;
-}
-/**
- * Build the chunk staggers.
- *
- * NOTE: Must be kept in sync with `splitSizeIntoParts` in skynet-js.
- */
-
-
-function buildChunkStaggers(totalSize, partCount, chunkSize) {
-  // The lists of chunks for each part.
-  var partsChunks = [];
-
-  for (var i = 0; i < partCount; i++) {
-    partsChunks.push([]);
-  } // The leftover size that must go into the last part.
-
-
-  var hasLeftover = totalSize % chunkSize > 0;
-
-  function newChunk(index) {
-    var partChunks = partsChunks[index];
-    var chunkResolve;
-    var promise = new Promise(function (resolve) {
-      return chunkResolve = resolve;
-    });
-    var chunk = {
-      promise: promise,
-      resolve: chunkResolve,
-      resolved: false,
-      nextChunkStagger: null,
-      nextChunkInPart: null,
-      indexInPart: partChunks.length
-    }; // Previous chunk in part should point to this chunk.
-
-    if (partChunks.length > 0) {
-      partChunks[partChunks.length - 1].nextChunkInPart = chunk;
-    } // Push chunk to part.
-
-
-    partChunks.push(chunk);
-  } // Assign chunks to parts in order, looping back to the beginning if we get to
-  // the end of the parts array.
-
-
-  var lastPart = -1;
-
-  for (var _i2 = 0; _i2 < Math.floor(totalSize / chunkSize); _i2++) {
-    newChunk(_i2 % partCount);
-    if (_i2 > lastPart) lastPart = _i2;
-  }
-
-  if (hasLeftover) {
-    var lastIndex;
-
-    if (lastPart === -1) {
-      // No parts were visited, so assign to the last part.
-      lastIndex = partCount - 1;
-    } else {
-      // Assign the leftover to the part after the last part that was visited, or
-      // the last part in the array if all parts were used.
-      lastIndex = Math.min(lastPart + 1, partCount - 1);
-    }
-
-    newChunk(lastIndex);
-  } // Now assign the stagger order. We start at the part with the most chunks, so
-  // we don't end up with any final pauses.
-
-
-  var longestPartIndex = null;
-  var longestPartLength = 0;
-
-  for (var _i3 = 0; _i3 < partsChunks.length; _i3++) {
-    if (longestPartIndex === null || partsChunks[_i3].length > longestPartLength) {
-      longestPartIndex = _i3;
-      longestPartLength = partsChunks[_i3].length;
-    }
-  } // Get the chunk at which to start uploading.
-
-
-  var firstChunk = partsChunks[longestPartIndex][0]; // Build the stagger sequence.
-
-  var lastChunk = null;
-
-  for (var _i4 = 0; _i4 < longestPartLength; _i4++) {
-    for (var j = longestPartIndex; j < longestPartIndex + partCount; j++) {
-      var index = j % partCount;
-
-      if (partsChunks[index].length > _i4) {
-        var chunk = partsChunks[index][_i4]; // Last chunk in stagger order should point to this one.
-
-        if (lastChunk !== null) {
-          lastChunk.nextChunkStagger = chunk;
-        }
-
-        lastChunk = chunk;
-      }
-    }
-  }
-
-  return [partsChunks, firstChunk];
-}
-
-BaseUpload.defaultOptions = defaultOptions;
-var _default = BaseUpload;
-exports["default"] = _default;
-
-/***/ }),
-
-/***/ 6925:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = uuid;
-
-/**
- * Generate a UUID v4 based on random numbers. We intentioanlly use the less
- * secure Math.random function here since the more secure crypto.getRandomNumbers
- * is not available on all platforms.
- * This is not a problem for us since we use the UUID only for generating a
- * request ID, so we can correlate server logs to client errors.
- *
- * This function is taken from following site:
- * https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
- *
- * @return {string} The generate UUID
- */
-function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    var r = Math.random() * 16 | 0;
-    var v = c == 'x' ? r : r & 0x3 | 0x8;
-    return v.toString(16);
-  });
-}
-
-/***/ }),
-
-/***/ 4775:
+/***/ 4032:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -34780,11 +32786,11 @@ var __createBinding = (this && this.__createBinding) || (Object.create ? (functi
 }));
 exports.__esModule = true;
 exports.defaultHandshakeAttemptsInterval = exports.defaultHandshakeMaxAttempts = exports.monitorWindowError = exports.errorWindowClosed = exports.dispatchedErrorEvent = exports.trimSuffix = exports.removeAdjacentChars = exports.ensureUrl = exports.createIframe = exports.createFullScreenIframe = exports.PermWrite = exports.PermRead = exports.PermLegacySkyID = exports.PermHidden = exports.PermDiscoverable = exports.permTypeToString = exports.permCategoryToString = exports.PermType = exports.PermCategory = exports.Permission = exports.sanitizePath = exports.getParentPath = exports.getPathDomain = void 0;
-var paths_1 = __nccwpck_require__(3632);
+var paths_1 = __nccwpck_require__(9516);
 __createBinding(exports, paths_1, "getPathDomain");
 __createBinding(exports, paths_1, "getParentPath");
 __createBinding(exports, paths_1, "sanitizePath");
-var permissions_1 = __nccwpck_require__(994);
+var permissions_1 = __nccwpck_require__(7830);
 __createBinding(exports, permissions_1, "Permission");
 __createBinding(exports, permissions_1, "PermCategory");
 __createBinding(exports, permissions_1, "PermType");
@@ -34796,13 +32802,13 @@ __createBinding(exports, permissions_1, "PermHidden");
 __createBinding(exports, permissions_1, "PermLegacySkyID");
 __createBinding(exports, permissions_1, "PermRead");
 __createBinding(exports, permissions_1, "PermWrite");
-var utils_1 = __nccwpck_require__(7674);
+var utils_1 = __nccwpck_require__(1120);
 __createBinding(exports, utils_1, "createFullScreenIframe");
 __createBinding(exports, utils_1, "createIframe");
 __createBinding(exports, utils_1, "ensureUrl");
 __createBinding(exports, utils_1, "removeAdjacentChars");
 __createBinding(exports, utils_1, "trimSuffix");
-var window_listener_1 = __nccwpck_require__(1138);
+var window_listener_1 = __nccwpck_require__(1466);
 __createBinding(exports, window_listener_1, "dispatchedErrorEvent");
 __createBinding(exports, window_listener_1, "errorWindowClosed");
 __createBinding(exports, window_listener_1, "monitorWindowError");
@@ -34812,14 +32818,14 @@ exports.defaultHandshakeAttemptsInterval = 100;
 
 /***/ }),
 
-/***/ 3632:
+/***/ 9516:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 exports.__esModule = true;
 exports.sanitizePath = exports.getParentPath = exports.getPathDomain = void 0;
-var utils_1 = __nccwpck_require__(7674);
+var utils_1 = __nccwpck_require__(1120);
 /**
  * Gets the root path domain for the given path.
  *
@@ -34899,7 +32905,7 @@ exports.sanitizePath = sanitizePath;
 
 /***/ }),
 
-/***/ 994:
+/***/ 7830:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -34991,7 +32997,7 @@ exports.permTypeToString = permTypeToString;
 
 /***/ }),
 
-/***/ 7674:
+/***/ 1120:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -35125,7 +33131,7 @@ exports.ensurePrefix = ensurePrefix;
 
 /***/ }),
 
-/***/ 1138:
+/***/ 1466:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
