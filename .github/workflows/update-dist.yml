@@ -1,6 +1,7 @@
 name: Update Dist
 
 on:
+  - repository_dispatch
   - push
 
 jobs:
@@ -26,7 +27,7 @@ jobs:
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
-          gh run rerun
+          gh api --method POST /repos/:owner/:repo/dispatches
       - name: update dist/licenses.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,4 +39,4 @@ jobs:
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
-          gh run rerun
+          gh api --method POST /repos/:owner/:repo/dispatches
