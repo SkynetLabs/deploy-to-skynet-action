@@ -9,8 +9,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        # with:
-        #   fetch-depth: 0
       - uses: actions/setup-node@v3
         with:
           node-version: 16.x
@@ -22,17 +20,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FILE_TO_COMMIT: dist/index.js
         run: |
-          git show-ref
-          echo "${{ github.head_ref }}"
-          echo "${{ github.ref }}"
-          git rev-parse ${{ github.head_ref }}:$FILE_TO_COMMIT
-          git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT
           git diff --exit-code -s $FILE_TO_COMMIT && echo "Everything up-to-date" && exit 0
           gh api --method PUT /repos/:owner/:repo/contents/$FILE_TO_COMMIT \
             --field message="chore: regenerate $FILE_TO_COMMIT" \
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
+          gh run rerun
       - name: update dist/licenses.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,3 +38,4 @@ jobs:
             --field content=@<( base64 -i $FILE_TO_COMMIT ) \
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
+          gh run rerun
