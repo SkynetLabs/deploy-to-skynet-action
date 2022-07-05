@@ -28,7 +28,7 @@ jobs:
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
           gh workflow run update-dist.yml
-          gh workflow run stale.yml
+          gh workflow run static-code-analysis.yml
       - name: update dist/licenses.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,4 +41,4 @@ jobs:
             --field branch="${{ github.ref }}" \
             --field sha="$( git rev-parse ${{ github.ref }}:$FILE_TO_COMMIT )"
           gh workflow run update-dist.yml
-          gh workflow run stale.yml
+          gh workflow run static-code-analysis.yml
