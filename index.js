@@ -1,18 +1,13 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
-const {
-  SkynetClient,
-  genKeyPairFromSeed,
-} = require("@skynetlabs/skynet-nodejs");
+const { SkynetClient, genKeyPairFromSeed } = require("@skynetlabs/skynet-nodejs");
 
 function outputAxiosErrorMessage(error) {
   if (error.response) {
     const { path, method } = error.request;
     const { status, statusText } = error.response;
 
-    console.log(
-      `${method.toUpperCase()} ${path} failed with status ${status}: ${statusText}`
-    );
+    console.log(`${method.toUpperCase()} ${path} failed with status ${status}: ${statusText}`);
     console.log(error.response.data || "Response contained no data");
   }
 }
@@ -53,15 +48,10 @@ function prepareUploadOptions() {
 
 (async () => {
   try {
-    // upload to skynet
-    const skynetClient = new SkynetClient(
-      core.getInput("portal-url"),
-      prepareClientOptions()
-    );
-    const skylink = await skynetClient.uploadDirectory(
-      core.getInput("upload-dir"),
-      prepareUploadOptions()
-    );
+    // parse options and upload output directory to skynet
+    const clientOptions = prepareClientOptions();
+    const skynetClient = new SkynetClient(core.getInput("portal-url"), clientOptions);
+    const skylink = await skynetClient.uploadDirectory(core.getInput("upload-dir"), clientOptions);
 
     // generate base32 skylink url from base64 skylink
     const skylinkUrl = await skynetClient.getSkylinkUrl(skylink, {
